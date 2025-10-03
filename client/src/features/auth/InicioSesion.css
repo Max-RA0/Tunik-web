@@ -1,0 +1,86 @@
+/* Contenedor principal con imagen de fondo */
+.login-container {
+  display: flex;
+  justify-content: flex-start; /* 👈 cuadro a la izquierda */
+  align-items: center; /* sigue centrado verticalmente */
+  min-height: 100vh;
+  padding-left: 180px; /* 👈 separación del borde izquierdo */
+
+  /* Imagen de fondo */
+  background: url("https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?fm=jpg&q=60&w=3000&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2Fycm9zfGVufDB8fDB8fHww")
+    no-repeat center center fixed;
+  background-size: cover;
+
+  font-family: Arial, sans-serif;
+}
+
+/* Tarjeta */
+.login-card {
+  background: rgba(255, 255, 255, 0.2); /* 👈 super transparente */
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0px 6px 18px rgba(0, 0, 0, 0.2);
+  width: 350px;
+  text-align: center;
+  backdrop-filter: blur(12px); /* efecto vidrio */
+  color: #fff; /* 👈 texto blanco */
+}
+
+
+
+/* Título */
+.login-title {
+  margin-bottom: 1.5rem;
+  color: #ffffff;
+}
+
+/* Formulario */
+.login-form .form-group {
+  margin-bottom: 1rem;
+  text-align: left;
+}
+
+.login-form label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 0.3rem;
+  color: #ffffff;
+}
+
+.login-form input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #dfe6e9;
+  border-radius: 6px;
+  outline: none;
+  transition: 0.3s;
+}
+
+.login-form input:focus {
+  border-color: #0984e3;
+  box-shadow: 0 0 5px rgba(9, 132, 227, 0.5);
+}
+
+/* Botón */
+.btn-login {
+  width: 100%;
+  padding: 12px;
+  background: #0984e3;
+  color: #fff;
+  font-weight: bold;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.btn-login:hover {
+  background: #74b9ff;
+}
+
+/* Mensajes */
+.mensaje {
+  margin-top: 1rem;
+  font-weight: bold;
+  color: #d63031;
+}
