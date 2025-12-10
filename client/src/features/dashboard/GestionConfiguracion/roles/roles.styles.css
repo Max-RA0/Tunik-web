@@ -365,3 +365,128 @@ tbody td:not(:last-child){
   .btn{ padding: 7px 9px !important; font-size: 12.5px !important; }
   .btn-group{ gap: 6px !important; }
 }
+
+
+/* =========================================================
+   ACL — Mejora visual sin afectar otros modales/partes
+   (aplica SOLO al modal que contiene .acl-tabs)
+   Pegar al FINAL del archivo.
+========================================================= */
+
+/* Diálogo más cómodo SOLO para el modal ACL */
+.modal:has(.acl-tabs) .modal-dialog{
+  max-width: 820px;
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(2,6,23,.18), 0 2px 10px rgba(2,6,23,.06);
+  border: 1px solid rgba(31,41,55,.06);
+}
+
+/* Header y Footer SOLO en ACL */
+.modal:has(.acl-tabs) .modal-header{
+  background: linear-gradient(180deg,#ffffff 0%,#fbfbfc 100%);
+  border-bottom: 1px solid rgba(31,41,55,.06);
+}
+.modal:has(.acl-tabs) .modal-footer{
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(180deg,#ffffff 0%,#fafbfc 100%);
+  border-top: 1px solid rgba(31,41,55,.06);
+  box-shadow: 0 -6px 18px rgba(2,6,23,.04);
+}
+
+/* Body scrolleable SOLO en ACL */
+.modal:has(.acl-tabs) .modal-body{
+  max-height: calc(80vh - 160px);
+  overflow: auto;
+  padding: 18px 22px;
+}
+
+/* Tabs pegajosas (sticky) SOLO en ACL */
+.modal:has(.acl-tabs) .acl-tabs{
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #fff;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(31,41,55,.06);
+}
+.acl-tab{
+  border-radius: 12px;
+  padding: 10px 16px;
+  box-shadow: 0 6px 16px rgba(2,6,23,.06);
+}
+.acl-tab.active{
+  background: linear-gradient(135deg,#eef2f6 0%, #e8edf3 100%);
+  border-color: rgba(31,41,55,.08);
+}
+
+/* Tarjetas (usa tus .card, pero SOLO cuando esté el ACL) */
+.modal:has(.acl-tabs) .card{
+  border-radius: 14px;
+  padding: 16px;
+  background: linear-gradient(135deg,#ffffff 0%,#fbfcfe 100%);
+  border: 1px solid rgba(31,41,55,.06);
+  box-shadow: 0 8px 22px rgba(2,6,23,.06);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.modal:has(.acl-tabs) .card + .card{ margin-top: 10px; }
+.modal:has(.acl-tabs) .card:hover{
+  transform: translateY(-2px);
+  box-shadow: 0 16px 30px rgba(2,6,23,.08);
+}
+
+/* Grid respirado (2 col) SOLO en ACL */
+.modal:has(.acl-tabs) .acl-grid{
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 980px){
+  .modal:has(.acl-tabs) .acl-grid{ grid-template-columns: 1fr; }
+}
+
+/* Chips bonitos (solo afecta ACL porque la clase es exclusiva) */
+.acl-chip{
+  border-radius: 12px;
+  border: 1px solid rgba(31,41,55,.10);
+  padding: 10px 14px;
+  background: #fff;
+  box-shadow: 0 6px 16px rgba(2,6,23,.04);
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.acl-chip:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(2,6,23,.06);
+}
+.acl-chip .material-symbols-rounded{ font-size: 18px; opacity: .8; }
+.acl-chip.on{
+  border-color: rgba(31,41,55,.18);
+  background: linear-gradient(180deg,#f7f9fb 0%,#f2f5f8 100%);
+  box-shadow: inset 0 0 0 1px rgba(31,41,55,.06), 0 8px 18px rgba(2,6,23,.06);
+}
+.acl-chip.on .material-symbols-rounded{ opacity: 1; }
+
+/* Scrollbar sutil SOLO dentro del ACL */
+.modal:has(.acl-tabs) .modal-body::-webkit-scrollbar{
+  width: 10px; height: 10px;
+}
+.modal:has(.acl-tabs) .modal-body::-webkit-scrollbar-thumb{
+  background: rgba(31,41,55,.18);
+  border-radius: 999px;
+  border: 2px solid #fff;
+}
+.modal:has(.acl-tabs) .modal-body::-webkit-scrollbar-track{
+  background: transparent;
+}
+
+/* Botón primario un pelín mejor (no rompe otros) */
+.modal:has(.acl-tabs) .btn.primary{
+  border-radius: 12px;
+  background: linear-gradient(135deg,#eef2f6 0%, #e6ebf1 100%);
+  border: 1px solid rgba(31,41,55,.08);
+}
+.modal:has(.acl-tabs) .btn.primary:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(2,6,23,.08);
+}
+

@@ -1,8 +1,9 @@
+// src/pages/MetodosPago.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import "./metodospago.styles.css";
 
-const API_URL = "http://localhost:3000/api/metodospago";
+const API_URL = "https://tunik-api.onrender.com/api/metodospago";
 
 /* ------------------- Normalizadores tolerantes ------------------- */
 function normalizeItem(raw) {
@@ -79,6 +80,11 @@ export default function MetodosPago() {
   const isEdit = Boolean(idmpago);
   const formRef = useRef(null);
 
+  // validación
+  const [formErrors, setFormErrors] = useState({ nombre: "" });
+  const [touched, setTouched] = useState({ nombre: false });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   // modal eliminar
   const [openDelete, setOpenDelete] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
@@ -87,15 +93,32 @@ export default function MetodosPago() {
   const [page, setPage] = useState(1);
   const pageSize = 5;
 
+  const RULES = {
+    nombre: { required: true, min: 2, max: 100 }
+  };
+
+  function validateNombre(v) {
+    const s = (v || "").trim();
+    if (RULES.nombre.required && s.length === 0) return "Ingresa el nombre del método";
+    if (s.length < RULES.nombre.min) return `El nombre debe tener al menos ${RULES.nombre.min} caracteres`;
+    if (s.length > RULES.nombre.max) return `El nombre no puede superar ${RULES.nombre.max} caracteres`;
+    return "";
+  }
+
+  function validateForm(values = {}) {
+    return {
+      nombre: validateNombre(values.nombre !== undefined ? values.nombre : nombremetodo)
+    };
+  }
+
   async function loadAll() {
     setLoading(true);
     setError("");
-    setMsg("");
+    // no setMsg here to avoid showing pill on regular reload/search
     try {
       const res = await axios.get(API_URL);
       const list = extractMany(res);
       setMetodos(list);
-      setMsg("Resultados: " + list.length);
       setPage(1);
     } catch (err) {
       setError(err?.response?.data?.msg || err.message || "Error cargando métodos de pago");
@@ -112,6 +135,8 @@ export default function MetodosPago() {
     setNombremetodo("");
     setError("");
     setMsg("");
+    setFormErrors({ nombre: "" });
+    setTouched({ nombre: false });
     setOpenForm(true);
     setTimeout(() => {
       formRef.current?.querySelector("#nombreMetodo")?.focus();
@@ -120,7 +145,7 @@ export default function MetodosPago() {
 
   async function onEdit(id) {
     setError("");
-    setMsg("");
+    // no setMsg to avoid showing pill when opening edit modal
     try {
       const res = await axios.get(`${API_URL}/${id}`);
       const item = extractOne(res);
@@ -130,8 +155,9 @@ export default function MetodosPago() {
       }
       setIdmpago(item.idmpago);
       setNombremetodo(item.nombremetodo || "");
+      setFormErrors({ nombre: "" });
+      setTouched({ nombre: false });
       setOpenForm(true);
-      setMsg("Editando método #" + item.idmpago);
       setTimeout(() => {
         formRef.current?.querySelector("#nombreMetodo")?.focus();
       }, 0);
@@ -144,10 +170,15 @@ export default function MetodosPago() {
     e.preventDefault();
     setError("");
     const nombre = (nombremetodo || "").trim();
-    if (!nombre) {
-      setError("Ingresa el nombre del método");
-      return;
-    }
+
+    // validar
+    const errors = validateForm({ nombre });
+    setFormErrors(errors);
+    setTouched({ nombre: true });
+
+    if (errors.nombre) return;
+
+    setIsSubmitting(true);
     try {
       if (isEdit) {
         await axios.put(`${API_URL}/${idmpago}`, { nombremetodo: nombre });
@@ -162,6 +193,8 @@ export default function MetodosPago() {
       await loadAll();
     } catch (err) {
       setError(err?.response?.data?.msg || err.message);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -174,7 +207,7 @@ export default function MetodosPago() {
     setError("");
     try {
       await axios.delete(`${API_URL}/${deleteId}`);
-      setMsg("Método eliminado");
+      // no setMsg here to avoid showing pill on delete
       setOpenDelete(false);
       setDeleteId(null);
       await loadAll();
@@ -198,6 +231,23 @@ export default function MetodosPago() {
     if (page > totalPages) setPage(totalPages);
   }, [totalPages, page]);
 
+  // handlers para validación onChange/onBlur
+  function handleNombreChange(v) {
+    setNombremetodo(v);
+    if (touched.nombre) setFormErrors((p) => ({ ...p, nombre: validateNombre(v) }));
+  }
+  function handleBlur(field) {
+    setTouched((t) => ({ ...t, [field]: true }));
+    if (field === "nombre") setFormErrors((p) => ({ ...p, nombre: validateNombre(nombremetodo) }));
+  }
+
+  // búsqueda simplificada: quitamos setMsg para no mostrar pill
+  async function handleSearchKeyEnterLoadAll(e) {
+    if (e.key === "Enter") {
+      await loadAll();
+    }
+  }
+
   return (
     <div className="mp-page">
       {/* Header */}
@@ -215,11 +265,11 @@ export default function MetodosPago() {
               placeholder="Buscar por nombre…"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              onKeyDown={(e) => { if (e.key === "Enter") loadAll(); }}
+              onKeyDown={handleSearchKeyEnterLoadAll}
             />
           </div>
 
-          <button className="btn primary" onClick={loadAll}>
+          <button className="btn primary" onClick={loadAll} disabled={loading}>
             <span className="material-symbols-rounded" aria-hidden="true">refresh</span>
             Buscar
           </button>
@@ -341,7 +391,7 @@ export default function MetodosPago() {
               </button>
             </div>
 
-            <form ref={formRef} onSubmit={onSubmit}>
+            <form ref={formRef} onSubmit={onSubmit} noValidate>
               <div className="modal-body">
                 <label htmlFor="nombreMetodo">Nombre del método</label>
                 <input
@@ -349,20 +399,29 @@ export default function MetodosPago() {
                   type="text"
                   placeholder="Ej: Efectivo, Tarjeta, Transferencia"
                   value={nombremetodo}
-                  onChange={(e) => setNombremetodo(e.target.value)}
+                  onChange={(e) => handleNombreChange(e.target.value)}
+                  onBlur={() => handleBlur("nombre")}
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); formRef.current?.requestSubmit(); } }}
                   required
+                  aria-required="true"
+                  aria-invalid={Boolean(formErrors.nombre)}
+                  maxLength={RULES.nombre.max}
                 />
+                {touched.nombre && formErrors.nombre ? (
+                  <div className="field-error" role="alert" style={{ color: "var(--danger)", marginTop: 6 }}>{formErrors.nombre}</div>
+                ) : (
+                  <div className="field-help" style={{ color: "#6b7280", marginTop: 6 }}>{`Min ${RULES.nombre.min}, max ${RULES.nombre.max} caracteres.`}</div>
+                )}
                 {error ? <p className="note error" style={{ marginTop: 6 }}>{error}</p> : null}
               </div>
 
               <div className="modal-footer">
-                <button type="button" className="btn btn-cancel" onClick={() => setOpenForm(false)}>
+                <button type="button" className="btn btn-cancel" onClick={() => setOpenForm(false)} disabled={isSubmitting}>
                   Cancelar
                 </button>
-                <button type="submit" className="btn primary">
+                <button type="submit" className="btn primary" disabled={isSubmitting}>
                   <span className="material-symbols-rounded" aria-hidden="true">check</span>
-                  {isEdit ? "Actualizar" : "Guardar"}
+                  {isSubmitting ? (isEdit ? "Actualizando..." : "Guardando...") : (isEdit ? "Actualizar" : "Guardar")}
                 </button>
               </div>
             </form>

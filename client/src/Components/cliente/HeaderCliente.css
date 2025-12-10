@@ -1,0 +1,130 @@
+:root {
+  --primary-color: #e63946;
+  --dark-bg: #1e2430;
+  --text-light: #ffffff;
+}
+
+/* Header */
+.tunik-navbar {
+  background-color: var(--dark-bg);
+  padding: 12px 0;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+/* Container */
+.tunik-container {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 0 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+/* Brand */
+.tunik-navbar .navbar-brand {
+  font-weight: 800;
+  letter-spacing: 3px;
+  font-size: 1.8rem;
+  color: var(--primary-color) !important;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tunik-navbar .brand-text {
+  color: var(--primary-color);
+}
+
+/* Acciones a la derecha */
+.tunik-actions {
+  flex: 1;                 /* <- clave: ocupa el espacio y se pega a la derecha */
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;         /* en móvil sí puede bajar */
+}
+
+/* En escritorio: NO se parte el header */
+@media (min-width: 992px) {
+  .tunik-actions {
+    flex-wrap: nowrap;     /* <- clave: evita que SALIR baje */
+  }
+  .tunik-navgroup {
+    flex-wrap: nowrap;
+  }
+}
+
+/* Grupo de botones */
+.tunik-navgroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+/* Botones */
+.tunik-navbar .btn-auth {
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  transition: all 0.25s ease;
+  white-space: nowrap;
+  width: auto !important;          /* <- evita que se estire */
+  display: inline-flex;            /* <- evita comportamiento raro */
+  align-items: center;
+  justify-content: center;
+}
+
+/* Rojo */
+.tunik-navbar .btn-register {
+  background: var(--primary-color);
+  color: #fff;
+  border: 1px solid var(--primary-color);
+}
+.tunik-navbar .btn-register:hover {
+  background: #d12f3c;
+  border-color: #d12f3c;
+  color: #fff;
+}
+
+/* Blanco borde */
+.tunik-navbar .btn-login {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+}
+.tunik-navbar .btn-login:hover {
+  background: #fff;
+  color: var(--dark-bg);
+}
+
+/* Pill usuario */
+.tunik-navbar .tunik-userpill {
+  cursor: default;
+  pointer-events: none;
+  background: rgba(230, 57, 70, 0.16);
+  border-color: rgba(230, 57, 70, 0.55);
+}
+
+/* Activo */
+.tunik-navbar .btn-nav.is-active {
+  box-shadow: 0 0 0 3px rgba(230, 57, 70, 0.18);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+/* SALIR SIEMPRE al final (derecha) */
+.tunik-navbar .tunik-logout {
+  margin-left: auto;        /* <- clave: lo empuja al final */
+  flex: 0 0 auto;
+}

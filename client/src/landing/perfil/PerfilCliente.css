@@ -1,0 +1,125 @@
+.perfil-page {
+  background: #f8f9fa;
+  min-height: 100vh;
+}
+
+.perfil-hero {
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,.06);
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: 0 12px 30px rgba(0,0,0,.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.perfil-hero-left {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.perfil-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #e63946 0%, #ff6b6b 100%);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  letter-spacing: 1px;
+  box-shadow: 0 12px 25px rgba(230,57,70,.22);
+}
+
+.perfil-title {
+  font-size: 2rem;
+  margin: 0;
+  line-height: 1.1;
+}
+
+.perfil-sub {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #111;
+}
+
+.perfil-badge {
+  background: rgba(230,57,70,.12);
+  color: #e63946;
+  border: 1px solid rgba(230,57,70,.25);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: .8rem;
+  letter-spacing: .4px;
+}
+
+.perfil-refresh {
+  border: 1px solid rgba(0,0,0,.10);
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 10px 25px rgba(0,0,0,.06);
+}
+
+.perfil-card {
+  background: #fff;
+  border: 1px solid rgba(0,0,0,.06);
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: 0 12px 30px rgba(0,0,0,.06);
+}
+
+.perfil-card-title {
+  margin: 0 0 14px 0;
+  font-weight: 900;
+  font-size: 1.35rem;
+}
+
+.perfil-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.perfil-row {
+  border: 1px solid rgba(0,0,0,.06);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.perfil-label {
+  color: #6b7280;
+  font-weight: 700;
+}
+
+.perfil-value {
+  color: #111827;
+  font-weight: 900;
+  text-align: right;
+  word-break: break-word;
+}
+
+@media (max-width: 768px) {
+  .perfil-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .perfil-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .perfil-value {
+    text-align: left;
+  }
+}

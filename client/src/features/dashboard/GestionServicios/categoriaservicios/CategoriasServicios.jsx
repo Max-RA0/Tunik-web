@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import "./categoriaservicios.styles.css";
 
-const API_URL = "http://localhost:3000/api/categoriaservicios";
+const API_URL = "https://tunik-api.onrender.com/api/categoriaservicios";
 
 /* ------------------- Normalizadores ------------------- */
 function normalizeCategoria(raw) {
@@ -97,6 +97,11 @@ export default function CategoriasServicios() {
   const [descripcion, setDescripcion] = useState("");
   const isEdit = useMemo(() => Boolean(idcategoriaservicios), [idcategoriaservicios]);
 
+  // validaciones del formulario
+  const [formErrors, setFormErrors] = useState({ nombre: "", descripcion: "" });
+  const [touched, setTouched] = useState({ nombre: false, descripcion: false });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   // modal eliminar
   const [openDelete, setOpenDelete] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
@@ -104,6 +109,32 @@ export default function CategoriasServicios() {
   // paginación
   const [page, setPage] = useState(1);
   const pageSize = 5;
+
+  // reglas de validación
+  const RULES = {
+    nombre: { required: true, min: 2, max: 100 },
+    descripcion: { required: false, max: 500 }
+  };
+
+  function validateNombre(value) {
+    const v = (value || "").trim();
+    if (RULES.nombre.required && v.length === 0) return "Ingresa el nombre de la categoría";
+    if (v.length < RULES.nombre.min) return `El nombre debe tener al menos ${RULES.nombre.min} caracteres`;
+    if (v.length > RULES.nombre.max) return `El nombre no puede superar ${RULES.nombre.max} caracteres`;
+    return "";
+  }
+
+  function validateDescripcion(value) {
+    const v = (value == null ? "" : String(value));
+    if (v.length > RULES.descripcion.max) return `La descripción no puede superar ${RULES.descripcion.max} caracteres`;
+    return "";
+  }
+
+  function validateFormFields(values = {}) {
+    const nombreErr = validateNombre(values.nombre !== undefined ? values.nombre : nombrecategorias);
+    const descErr = validateDescripcion(values.descripcion !== undefined ? values.descripcion : descripcion);
+    return { nombre: nombreErr, descripcion: descErr };
+  }
 
   async function loadCategorias(q) {
     if (q === undefined) q = "";
@@ -115,7 +146,7 @@ export default function CategoriasServicios() {
       var res = await axios.get(url);
       var list = extractManyCategorias(res);
       setCategorias(list);
-      setMsg("Resultados: " + list.length);
+      // NOTE: removed setMsg("Resultados: " + list.length) to avoid showing message on search
       setPage(1);
     } catch (err) {
       setError(err?.response?.data?.msg || err.message || "Error cargando categorías");
@@ -132,6 +163,8 @@ export default function CategoriasServicios() {
     setDescripcion("");
     setError("");
     setMsg("");
+    setFormErrors({ nombre: "", descripcion: "" });
+    setTouched({ nombre: false, descripcion: false });
   }
 
   function onNew() {
@@ -141,7 +174,7 @@ export default function CategoriasServicios() {
 
   async function onEdit(id) {
     setError("");
-    setMsg("");
+    // setMsg("");  // intentionally left out to avoid showing "Editando..." message
     try {
       var res = await axios.get(API_URL + "/" + id);
       var c = extractOneCategoria(res);
@@ -152,8 +185,10 @@ export default function CategoriasServicios() {
       setIdCategoria(c.idcategoriaservicios);
       setNombre(c.nombrecategorias || "");
       setDescripcion(c.descripcion || "");
+      setFormErrors({ nombre: "", descripcion: "" });
+      setTouched({ nombre: false, descripcion: false });
       setOpenForm(true);
-      setMsg("Editando categoría #" + c.idcategoriaservicios);
+      // removed setMsg("Editando categoría #" + c.idcategoriaservicios);
     } catch (err) {
       setError(err?.response?.data?.msg || err.message);
     }
@@ -168,7 +203,7 @@ export default function CategoriasServicios() {
     setError("");
     try {
       await axios.delete(API_URL + "/" + deleteId);
-      setMsg("Categoría eliminada");
+      // removed setMsg("Categoría eliminada") to avoid showing message on delete
       setOpenDelete(false);
       setDeleteId(null);
       await loadCategorias(search);
@@ -180,17 +215,26 @@ export default function CategoriasServicios() {
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
-    var nombre = (nombrecategorias || "").trim();
-    if (!nombre) {
-      setError("Ingresa el nombre de la categoría");
+    // validar campos antes de enviar
+    const trimmedNombre = (nombrecategorias || "").trim();
+    const trimmedDescripcion = descripcion == null ? "" : String(descripcion);
+    const errors = validateFormFields({ nombre: trimmedNombre, descripcion: trimmedDescripcion });
+    setFormErrors(errors);
+    setTouched({ nombre: true, descripcion: true });
+
+    const hasError = Boolean(errors.nombre || errors.descripcion);
+    if (hasError) {
+      // si hay error, salir sin hacer petición
       return;
     }
+
+    setIsSubmitting(true);
     try {
       if (isEdit) {
-        await axios.put(API_URL + "/" + idcategoriaservicios, { nombrecategorias: nombre, descripcion });
+        await axios.put(API_URL + "/" + idcategoriaservicios, { nombrecategorias: trimmedNombre, descripcion: trimmedDescripcion });
         setMsg("Categoría actualizada");
       } else {
-        await axios.post(API_URL, { nombrecategorias: nombre, descripcion });
+        await axios.post(API_URL, { nombrecategorias: trimmedNombre, descripcion: trimmedDescripcion });
         setMsg("Categoría creada");
       }
       setOpenForm(false);
@@ -198,6 +242,8 @@ export default function CategoriasServicios() {
       await loadCategorias(search);
     } catch (err2) {
       setError(err2?.response?.data?.msg || err2.message);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -216,6 +262,28 @@ export default function CategoriasServicios() {
 
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [totalPages, page]);
 
+  // handlers para validación onBlur / onChange
+  function handleNombreChange(v) {
+    setNombre(v);
+    if (touched.nombre) {
+      setFormErrors((prev) => ({ ...prev, nombre: validateNombre(v) }));
+    }
+  }
+  function handleDescripcionChange(v) {
+    setDescripcion(v);
+    if (touched.descripcion) {
+      setFormErrors((prev) => ({ ...prev, descripcion: validateDescripcion(v) }));
+    }
+  }
+  function handleBlur(field) {
+    setTouched((t) => ({ ...t, [field]: true }));
+    if (field === "nombre") {
+      setFormErrors((prev) => ({ ...prev, nombre: validateNombre(nombrecategorias) }));
+    } else if (field === "descripcion") {
+      setFormErrors((prev) => ({ ...prev, descripcion: validateDescripcion(descripcion) }));
+    }
+  }
+
   return (
     <div className="categorias-page">
       <header className="header">
@@ -232,10 +300,11 @@ export default function CategoriasServicios() {
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               onKeyDown={(e) => { if (e.key === "Enter") loadCategorias(search); }}
+              aria-label="Buscar categorías"
             />
           </div>
 
-          <button className="btn primary" onClick={() => loadCategorias(search)}>
+          <button className="btn primary" onClick={() => loadCategorias(search)} disabled={loading}>
             <span className="material-symbols-rounded">refresh</span>
             Buscar
           </button>
@@ -248,6 +317,7 @@ export default function CategoriasServicios() {
       </header>
 
       {loading && <p style={{ padding: "12px 32px" }}>Cargando categorías…</p>}
+      {/* msg is still used for create/update success messages; it won't be set by search/edit/delete anymore */}
       {!loading && msg ? <p className="note">{msg}</p> : null}
       {error ? <p className="note error">{error}</p> : null}
 
@@ -323,24 +393,52 @@ export default function CategoriasServicios() {
               <button className="close-btn" onClick={() => setOpenForm(false)}>&times;</button>
             </div>
 
-            <form onSubmit={onSubmit}>
+            <form onSubmit={onSubmit} noValidate>
               <div className="modal-body">
                 <div className="form-row">
                   <label>Nombre</label>
-                  <input type="text" value={nombrecategorias} onChange={(e) => setNombre(e.target.value)} required />
+                  <input
+                    type="text"
+                    value={nombrecategorias}
+                    onChange={(e) => handleNombreChange(e.target.value)}
+                    onBlur={() => handleBlur("nombre")}
+                    required
+                    aria-required="true"
+                    aria-invalid={Boolean(formErrors.nombre)}
+                    maxLength={RULES.nombre.max}
+                  />
+                  {touched.nombre && formErrors.nombre ? (
+                    <div className="field-error" role="alert" style={{ color: "var(--danger)", marginTop: 6 }}>{formErrors.nombre}</div>
+                  ) : (
+                    <div className="field-help" style={{ color: "#6b7280", marginTop: 6 }}>Nombre requerido. {`Min ${RULES.nombre.min}, max ${RULES.nombre.max} caracteres.`}</div>
+                  )}
                 </div>
+
                 <div className="form-row">
                   <label>Descripción</label>
-                  <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3}></textarea>
+                  <textarea
+                    value={descripcion}
+                    onChange={(e) => handleDescripcionChange(e.target.value)}
+                    onBlur={() => handleBlur("descripcion")}
+                    rows={3}
+                    maxLength={RULES.descripcion.max}
+                    aria-invalid={Boolean(formErrors.descripcion)}
+                  ></textarea>
+                  {touched.descripcion && formErrors.descripcion ? (
+                    <div className="field-error" role="alert" style={{ color: "var(--danger)", marginTop: 6 }}>{formErrors.descripcion}</div>
+                  ) : (
+                    <div className="field-help" style={{ color: "#6b7280", marginTop: 6 }}>{`Máx ${RULES.descripcion.max} caracteres.`}</div>
+                  )}
                 </div>
+
                 {error ? <p className="note error">{error}</p> : null}
               </div>
 
               <div className="modal-footer">
-                <button type="button" className="btn btn-cancel" onClick={() => setOpenForm(false)}>Cancelar</button>
-                <button type="submit" className="btn primary">
+                <button type="button" className="btn btn-cancel" onClick={() => setOpenForm(false)} disabled={isSubmitting}>Cancelar</button>
+                <button type="submit" className="btn primary" disabled={isSubmitting}>
                   <span className="material-symbols-rounded">check</span>
-                  {isEdit ? "Actualizar" : "Guardar"}
+                  {isSubmitting ? (isEdit ? "Actualizando..." : "Guardando...") : (isEdit ? "Actualizar" : "Guardar")}
                 </button>
               </div>
             </form>

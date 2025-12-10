@@ -1,0 +1,94 @@
+/* client/src/landing/evaluacion/evaluacionCliente.css */
+
+.eval-page {
+  background:
+    radial-gradient(circle at top left, rgba(230, 57, 70, 0.16), transparent 55%),
+    radial-gradient(circle at bottom right, rgba(15, 23, 42, 0.1), #f8f9fa);
+  min-height: 100vh;
+}
+
+.eval-page .container {
+  max-width: 900px;
+}
+
+/* Card principal */
+.eval-card {
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 22px;
+  padding: 22px;
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.13);
+}
+
+/* Estrellas */
+.eval-page .star-rating {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.eval-page .star-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.eval-page .star-btn i {
+  font-size: 22px;
+  color: #c7c7c7;
+}
+
+.eval-page .star-btn.on {
+  background: rgba(250, 204, 21, 0.08);
+  border-color: rgba(245, 158, 11, 0.8);
+}
+
+.eval-page .star-btn.on i {
+  color: #f2b01e;
+}
+
+.eval-page .star-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+  border-color: rgba(15, 23, 42, 0.3);
+}
+
+.eval-page .star-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(230, 57, 70, 0.18);
+  border-color: rgba(230, 57, 70, 0.7);
+}
+
+/* Textarea */
+.eval-page textarea.form-control {
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.eval-page textarea.form-control:focus {
+  border-color: rgba(230, 57, 70, 0.7);
+  box-shadow: 0 0 0 3px rgba(230, 57, 70, 0.22);
+}
+
+/* Botón enviar */
+.eval-page .btn-primary {
+  background: #e63946;
+  border: none;
+  border-radius: 999px;
+  padding-block: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.eval-page .btn-primary:hover {
+  filter: brightness(0.96);
+  box-shadow: 0 14px 34px rgba(220, 38, 38, 0.35);
+}

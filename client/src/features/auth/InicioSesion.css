@@ -84,3 +84,16 @@
   font-weight: bold;
   color: #d63031;
 }
+
+.olvide-pass {
+  margin-top: 10px;
+  cursor: pointer;
+  color: #dfe6e9;
+  text-align: center;
+  font-size: 14px;
+  text-decoration: underline;
+}
+
+.olvide-pass:hover {
+  color: #74b9ff;
+}

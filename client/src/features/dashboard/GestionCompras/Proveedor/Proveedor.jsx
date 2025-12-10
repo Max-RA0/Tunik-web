@@ -1,9 +1,10 @@
+// src/pages/Proveedor.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import "./proveedor.styles.css";
 
-const PRIMARY_API = "http://localhost:3000/api/proveedores";
-const FALLBACK_API = "http://localhost:3000/proveedores";
+const PRIMARY_API = "https://tunik-api.onrender.com/api/proveedores";
+const FALLBACK_API = "https://tunik-api.onrender.com/api/proveedores-fallback";
 
 /* ------------------- Normalizadores ------------------- */
 function normalizeProveedor(raw) {
@@ -88,6 +89,11 @@ export default function Proveedor() {
   const isEdit = Boolean(formId);
   const formRef = useRef(null);
 
+  // validaciones del formulario
+  const [formErrors, setFormErrors] = useState({ nombre: "", correo: "", empresa: "", telefono: "" });
+  const [touched, setTouched] = useState({ nombre: false, correo: false, empresa: false, telefono: false });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   // modal eliminar
   const [openDelete, setOpenDelete] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
@@ -95,6 +101,58 @@ export default function Proveedor() {
   // paginación
   const [page, setPage] = useState(1);
   const pageSize = 5;
+
+  /* --------- Reglas de validación (ajustables) --------- */
+  const RULES = {
+    nombre: { required: true, min: 2, max: 120 },
+    correo: { required: true },
+    empresa: { required: true, min: 2, max: 120 },
+    telefono: { required: false, max: 30 }
+  };
+
+  function validateNombre(v) {
+    const s = (v || "").trim();
+    if (RULES.nombre.required && s.length === 0) return "Ingresa el nombre del proveedor";
+    if (s.length < RULES.nombre.min) return `El nombre debe tener al menos ${RULES.nombre.min} caracteres`;
+    if (s.length > RULES.nombre.max) return `El nombre no puede superar ${RULES.nombre.max} caracteres`;
+    return "";
+  }
+
+  function validateCorreo(v) {
+    const s = (v || "").trim();
+    if (RULES.correo.required && s.length === 0) return "Ingresa el correo";
+    // email básico
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (s.length > 0 && !re.test(String(s).toLowerCase())) return "Correo no tiene un formato válido";
+    return "";
+  }
+
+  function validateEmpresa(v) {
+    const s = (v || "").trim();
+    if (RULES.empresa.required && s.length === 0) return "Ingresa el nombre de la empresa";
+    if (s.length < RULES.empresa.min) return `La empresa debe tener al menos ${RULES.empresa.min} caracteres`;
+    if (s.length > RULES.empresa.max) return `El nombre de la empresa no puede superar ${RULES.empresa.max} caracteres`;
+    return "";
+  }
+
+  function validateTelefono(v) {
+    const s = (v || "").trim();
+    if (!s) return "";
+    // permite números, espacios, +, -, paréntesis (básico)
+    const re = /^[\d+\-\s()]{7,30}$/;
+    if (!re.test(s)) return "Teléfono con formato inválido";
+    if (s.length > RULES.telefono.max) return `El teléfono no puede superar ${RULES.telefono.max} caracteres`;
+    return "";
+  }
+
+  function validateFormFields(values = {}) {
+    return {
+      nombre: validateNombre(values.nombre !== undefined ? values.nombre : nombre),
+      correo: validateCorreo(values.correo !== undefined ? values.correo : correo),
+      empresa: validateEmpresa(values.empresa !== undefined ? values.empresa : empresa),
+      telefono: validateTelefono(values.telefono !== undefined ? values.telefono : telefono),
+    };
+  }
 
   /* --------- Autodetect API + Carga inicial --------- */
   useEffect(() => {
@@ -125,12 +183,11 @@ export default function Proveedor() {
   async function loadAll() {
     setLoading(true);
     setError("");
-    setMsg("");
+    // NO setMsg aquí para evitar mostrar el badge cada vez que recargas
     try {
       const res = await axios.get(apiUrl);
       const list = extractMany(res);
       setProveedores(list);
-      setMsg("Resultados: " + list.length);
       setPage(1);
     } catch (err) {
       setError(err?.response?.data?.msg || err.message || "Error cargando proveedores");
@@ -148,6 +205,8 @@ export default function Proveedor() {
     setEmpresa("");
     setError("");
     setMsg("");
+    setFormErrors({ nombre: "", correo: "", empresa: "", telefono: "" });
+    setTouched({ nombre: false, correo: false, empresa: false, telefono: false });
     setOpenForm(true);
     setTimeout(() => {
       formRef.current?.querySelector("#provNombre")?.focus();
@@ -156,7 +215,7 @@ export default function Proveedor() {
 
   async function onEdit(id) {
     setError("");
-    setMsg("");
+    // NO setMsg("Editando...") para evitar mostrar el badge cuando abres el modal
     try {
       const res = await axios.get(`${apiUrl}/${id}`);
       const item = extractOne(res);
@@ -169,8 +228,9 @@ export default function Proveedor() {
       setTelefono(item.telefono || "");
       setCorreo(item.correo || "");
       setEmpresa(item.nombreempresa || "");
+      setFormErrors({ nombre: "", correo: "", empresa: "", telefono: "" });
+      setTouched({ nombre: false, correo: false, empresa: false, telefono: false });
       setOpenForm(true);
-      setMsg("Editando proveedor #" + item.idproveedor);
       setTimeout(() => {
         formRef.current?.querySelector("#provNombre")?.focus();
       }, 0);
@@ -182,7 +242,7 @@ export default function Proveedor() {
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
-
+    // sanitize
     const body = {
       nombre: (nombre || "").trim(),
       telefono: (telefono || "").trim(),
@@ -190,11 +250,22 @@ export default function Proveedor() {
       nombreempresa: (empresa || "").trim(),
     };
 
-    if (!body.nombre || !body.correo || !body.nombreempresa) {
-      setError("Completa: Nombre, Correo y Empresa.");
+    // validar
+    const errors = validateFormFields({
+      nombre: body.nombre,
+      correo: body.correo,
+      empresa: body.nombreempresa,
+      telefono: body.telefono,
+    });
+    setFormErrors(errors);
+    setTouched({ nombre: true, correo: true, empresa: true, telefono: true });
+
+    const hasError = Boolean(errors.nombre || errors.correo || errors.empresa || errors.telefono);
+    if (hasError) {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       if (isEdit) {
         await axios.put(`${apiUrl}/${formId}`, body);
@@ -208,6 +279,8 @@ export default function Proveedor() {
     } catch (err) {
       const serverMsg = err?.response?.data?.message || err?.response?.data?.error || err?.response?.data?.msg;
       setError(serverMsg || err.message);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -220,7 +293,7 @@ export default function Proveedor() {
     setError("");
     try {
       await axios.delete(`${apiUrl}/${deleteId}`);
-      setMsg("Proveedor eliminado");
+      // NO setMsg("Proveedor eliminado") para evitar mostrar el badge cada vez que borras
       setOpenDelete(false);
       setDeleteId(null);
       await loadAll();
@@ -234,7 +307,7 @@ export default function Proveedor() {
   async function handleSearch(e) {
     e && e.preventDefault && e.preventDefault();
     setError("");
-    setMsg("");
+    // NO setMsg("") here to avoid clearing/setting the badge frequently
 
     const q = (search || "").trim();
     if (!q) {
@@ -250,14 +323,11 @@ export default function Proveedor() {
         const one = extractOne(res);
         if (one) {
           setProveedores([one]);
-          setMsg("Resultado por ID");
         } else {
           setProveedores([]);
-          setMsg("No encontrado");
         }
       } catch {
         setProveedores([]);
-        setMsg("No encontrado");
       } finally {
         setLoading(false);
       }
@@ -273,7 +343,6 @@ export default function Proveedor() {
         [p.nombre, p.correo, p.nombreempresa].join(" ").toLowerCase().includes(s)
       );
       setProveedores(filtered);
-      setMsg(`Resultados: ${filtered.length}`);
       setPage(1);
     } catch (err) {
       setError("Error buscando: " + (err?.response?.data?.message || err.message));
@@ -294,6 +363,31 @@ export default function Proveedor() {
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [totalPages, page]);
+
+  // handlers para validación onBlur / onChange
+  function handleNombreChange(v) {
+    setNombre(v);
+    if (touched.nombre) setFormErrors((p) => ({ ...p, nombre: validateNombre(v) }));
+  }
+  function handleCorreoChange(v) {
+    setCorreo(v);
+    if (touched.correo) setFormErrors((p) => ({ ...p, correo: validateCorreo(v) }));
+  }
+  function handleEmpresaChange(v) {
+    setEmpresa(v);
+    if (touched.empresa) setFormErrors((p) => ({ ...p, empresa: validateEmpresa(v) }));
+  }
+  function handleTelefonoChange(v) {
+    setTelefono(v);
+    if (touched.telefono) setFormErrors((p) => ({ ...p, telefono: validateTelefono(v) }));
+  }
+  function handleBlur(field) {
+    setTouched((t) => ({ ...t, [field]: true }));
+    if (field === "nombre") setFormErrors((p) => ({ ...p, nombre: validateNombre(nombre) }));
+    if (field === "correo") setFormErrors((p) => ({ ...p, correo: validateCorreo(correo) }));
+    if (field === "empresa") setFormErrors((p) => ({ ...p, empresa: validateEmpresa(empresa) }));
+    if (field === "telefono") setFormErrors((p) => ({ ...p, telefono: validateTelefono(telefono) }));
+  }
 
   return (
     <div className="prov-page">
@@ -317,7 +411,7 @@ export default function Proveedor() {
             />
           </div>
 
-          <button className="btn primary" onClick={handleSearch}>
+          <button className="btn primary" onClick={handleSearch} disabled={loading}>
             <span className="material-symbols-rounded" aria-hidden="true">refresh</span>
             Buscar
           </button>
@@ -330,6 +424,7 @@ export default function Proveedor() {
       </header>
 
       {loading && <p style={{ padding: "12px 32px" }}>Cargando proveedores…</p>}
+      {/* msg still used for create/update success messages */}
       {!loading && msg ? <p className="note">{msg}</p> : null}
       {error ? <p className="note error">{error}</p> : null}
 
@@ -346,7 +441,7 @@ export default function Proveedor() {
               <th scope="col" style={{ width: 300 }}>Acciones</th>
             </tr>
           </thead>
-        <tbody>
+          <tbody>
             {!loading && pageItems.length === 0 ? (
               <tr>
                 <td colSpan={6} style={{ textAlign: "center", padding: 24, color: "#6b7280", fontStyle: "italic" }}>
@@ -445,7 +540,7 @@ export default function Proveedor() {
               </button>
             </div>
 
-            <form ref={formRef} onSubmit={onSubmit}>
+            <form ref={formRef} onSubmit={onSubmit} noValidate>
               <div className="modal-body grid-2">
                 <div className="form-row">
                   <label htmlFor="provNombre">Nombre *</label>
@@ -453,51 +548,88 @@ export default function Proveedor() {
                     id="provNombre"
                     type="text"
                     value={nombre}
-                    onChange={(e) => setNombre(e.target.value)}
+                    onChange={(e) => handleNombreChange(e.target.value)}
+                    onBlur={() => handleBlur("nombre")}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); formRef.current?.requestSubmit(); } }}
                     required
+                    aria-required="true"
+                    aria-invalid={Boolean(formErrors.nombre)}
+                    maxLength={RULES.nombre.max}
                   />
+                  {touched.nombre && formErrors.nombre ? (
+                    <div className="field-error" role="alert" style={{ color: "var(--danger)", marginTop: 6 }}>{formErrors.nombre}</div>
+                  ) : (
+                    <div className="field-help" style={{ color: "#6b7280", marginTop: 6 }}>{`Min ${RULES.nombre.min}, max ${RULES.nombre.max} caracteres.`}</div>
+                  )}
                 </div>
+
                 <div className="form-row">
                   <label htmlFor="provTelefono">Teléfono</label>
                   <input
                     id="provTelefono"
                     type="text"
                     value={telefono}
-                    onChange={(e) => setTelefono(e.target.value)}
+                    onChange={(e) => handleTelefonoChange(e.target.value)}
+                    onBlur={() => handleBlur("telefono")}
+                    aria-invalid={Boolean(formErrors.telefono)}
+                    maxLength={RULES.telefono.max}
                   />
+                  {touched.telefono && formErrors.telefono ? (
+                    <div className="field-error" role="alert" style={{ color: "var(--danger)", marginTop: 6 }}>{formErrors.telefono}</div>
+                  ) : (
+                    <div className="field-help" style={{ color: "#6b7280", marginTop: 6 }}>Formato: sólo números, espacios, +, - y ().</div>
+                  )}
                 </div>
+
                 <div className="form-row">
                   <label htmlFor="provCorreo">Correo *</label>
                   <input
                     id="provCorreo"
                     type="email"
                     value={correo}
-                    onChange={(e) => setCorreo(e.target.value)}
+                    onChange={(e) => handleCorreoChange(e.target.value)}
+                    onBlur={() => handleBlur("correo")}
                     required
+                    aria-required="true"
+                    aria-invalid={Boolean(formErrors.correo)}
                   />
+                  {touched.correo && formErrors.correo ? (
+                    <div className="field-error" role="alert" style={{ color: "var(--danger)", marginTop: 6 }}>{formErrors.correo}</div>
+                  ) : (
+                    <div className="field-help" style={{ color: "#6b7280", marginTop: 6 }}>Ingresa un correo válido.</div>
+                  )}
                 </div>
+
                 <div className="form-row">
                   <label htmlFor="provEmpresa">Empresa *</label>
                   <input
                     id="provEmpresa"
                     type="text"
                     value={empresa}
-                    onChange={(e) => setEmpresa(e.target.value)}
+                    onChange={(e) => handleEmpresaChange(e.target.value)}
+                    onBlur={() => handleBlur("empresa")}
                     required
+                    aria-required="true"
+                    aria-invalid={Boolean(formErrors.empresa)}
+                    maxLength={RULES.empresa.max}
                   />
+                  {touched.empresa && formErrors.empresa ? (
+                    <div className="field-error" role="alert" style={{ color: "var(--danger)", marginTop: 6 }}>{formErrors.empresa}</div>
+                  ) : (
+                    <div className="field-help" style={{ color: "#6b7280", marginTop: 6 }}>{`Min ${RULES.empresa.min}, max ${RULES.empresa.max} caracteres.`}</div>
+                  )}
                 </div>
 
                 {error ? <p className="note error" style={{ gridColumn: "1 / -1" }}>{error}</p> : null}
               </div>
 
               <div className="modal-footer">
-                <button type="button" className="btn btn-cancel" onClick={() => setOpenForm(false)}>
+                <button type="button" className="btn btn-cancel" onClick={() => setOpenForm(false)} disabled={isSubmitting}>
                   Cancelar
                 </button>
-                <button type="submit" className="btn primary">
+                <button type="submit" className="btn primary" disabled={isSubmitting}>
                   <span className="material-symbols-rounded" aria-hidden="true">check</span>
-                  {isEdit ? "Actualizar" : "Guardar"}
+                  {isSubmitting ? (isEdit ? "Actualizando..." : "Guardando...") : (isEdit ? "Actualizar" : "Guardar")}
                 </button>
               </div>
             </form>

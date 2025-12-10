@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import "./evaluacion-servicios.styles.css";
 
-const API = "http://localhost:3000/api";
+const API = "https://tunik-api.onrender.com/api";
 const EV_URL = `${API}/evaluaciones`;
 const USU_URL = `${API}/usuarios`;
 const SER_URL = `${API}/servicios`;
@@ -10,6 +10,12 @@ const SER_URL = `${API}/servicios`;
 function toInt(v) {
   const n = Number(v);
   return Number.isFinite(n) ? Math.trunc(n) : null;
+}
+
+function clampText(s, max = 60) {
+  const t = String(s ?? "").trim();
+  if (t.length <= max) return t;
+  return t.slice(0, max).trimEnd() + "…";
 }
 
 export default function EvaluacionServicios() {
@@ -28,9 +34,12 @@ export default function EvaluacionServicios() {
   const [openForm, setOpenForm] = useState(false);
   const [editId, setEditId] = useState(null);
 
-  const [cedula, setCedula] = useState("");
+  const [numero_documento, setnumero_documento] = useState("");
   const [idservicios, setIdservicios] = useState("");
   const [rating, setRating] = useState(0);
+
+  // ✅ NUEVO: comentarios
+  const [comentarios, setComentarios] = useState("");
 
   const formRef = useRef(null);
   const isEdit = useMemo(() => Boolean(editId), [editId]);
@@ -42,7 +51,7 @@ export default function EvaluacionServicios() {
   // caches
   const userById = useMemo(() => {
     const m = new Map();
-    (users || []).forEach((u) => m.set(String(u.cedula), u));
+    (users || []).forEach((u) => m.set(String(u.numero_documento), u));
     return m;
   }, [users]);
 
@@ -65,9 +74,10 @@ export default function EvaluacionServicios() {
 
       const evList = (evRes?.data?.data || []).map((r) => ({
         ...r,
-        calificacion:
-          toInt(r.calificacion) ?? toInt(r.respuestacalificacion) ?? 0,
+        calificacion: toInt(r.calificacion) ?? toInt(r.respuestacalificacion) ?? 0,
+        comentarios: String(r.comentarios ?? ""), // ✅ asegura string
       }));
+
       setRows(evList);
       setUsers(uRes?.data?.data || uRes?.data || []);
       setServices(sRes?.data?.data || sRes?.data || []);
@@ -80,13 +90,16 @@ export default function EvaluacionServicios() {
     }
   }
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => {
+    fetchAll();
+  }, []);
 
   function resetForm() {
     setEditId(null);
-    setCedula("");
+    setnumero_documento("");
     setIdservicios("");
     setRating(0);
+    setComentarios(""); // ✅ reset
     setError("");
     setMsg("");
   }
@@ -94,16 +107,23 @@ export default function EvaluacionServicios() {
   function onNew() {
     resetForm();
     setOpenForm(true);
-    setTimeout(() => formRef.current?.querySelector("#selCedula")?.focus(), 0);
+    setTimeout(
+      () => formRef.current?.querySelector("#selnumero_documento")?.focus(),
+      0
+    );
   }
 
   function onEdit(row) {
     setEditId(row.idevaluacion);
-    setCedula(String(row.cedula));
+    setnumero_documento(String(row.numero_documento));
     setIdservicios(String(row.idservicios));
     setRating(row.calificacion || 0);
+    setComentarios(String(row.comentarios ?? "")); // ✅ load
     setOpenForm(true);
-    setTimeout(() => formRef.current?.querySelector("#selCedula")?.focus(), 0);
+    setTimeout(
+      () => formRef.current?.querySelector("#selnumero_documento")?.focus(),
+      0
+    );
   }
 
   function askDelete(id) {
@@ -133,15 +153,29 @@ export default function EvaluacionServicios() {
     setError("");
 
     const r = toInt(rating);
-    if (!cedula || !idservicios || !r || r < 1 || r > 5) {
+    const c = String(comentarios ?? "").trim();
+
+    if (!numero_documento || !idservicios || !r || r < 1 || r > 5) {
       setError("Completa todos los campos y elige calificación 1–5.");
       return;
     }
 
+    // ✅ comentarios obligatorio (según tu modelo allowNull:false)
+    if (!c) {
+      setError("El campo comentarios es obligatorio.");
+      return;
+    }
+
+    if (c.length > 500) {
+      setError("Comentarios máximo 500 caracteres.");
+      return;
+    }
+
     const payload = {
-      cedula,
+      numero_documento,
       idservicios: Number(idservicios),
       respuestacalificacion: r, // compat con nombre de columna
+      comentarios: c, // ✅ NUEVO
     };
 
     try {
@@ -168,10 +202,11 @@ export default function EvaluacionServicios() {
     return rows.filter((r) =>
       [
         r.idevaluacion,
-        r.cedula,
-        userById.get(String(r.cedula))?.nombre,
+        r.numero_documento,
+        userById.get(String(r.numero_documento))?.nombre,
         serviceById.get(Number(r.idservicios))?.nombreservicios,
         r.calificacion,
+        r.comentarios, // ✅ incluye en búsqueda
       ]
         .join(" ")
         .toLowerCase()
@@ -180,31 +215,40 @@ export default function EvaluacionServicios() {
   }, [rows, search, userById, serviceById]);
 
   return (
-    <div className="roles-page">{/* re-uso de la misma clase raíz para el mismo diseño */}
+    <div className="roles-page">
+      {/* re-uso de la misma clase raíz para el mismo diseño */}
       <header className="header">
         <div className="header-left">
           <h1>Evaluación de Servicios</h1>
         </div>
         <div className="header-actions">
           <div className="search-wrapper" role="search" aria-label="Buscar evaluación">
-            <span className="material-symbols-rounded search-icon" aria-hidden="true">search</span>
+            <span className="material-symbols-rounded search-icon" aria-hidden="true">
+              search
+            </span>
             <input
               className="search-input"
               type="search"
-              placeholder="Buscar por usuario/servicio/cédula…"
+              placeholder="Buscar por usuario/servicio/cédula/comentario…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") fetchAll(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") fetchAll();
+              }}
             />
           </div>
 
           <button className="btn primary" onClick={fetchAll}>
-            <span className="material-symbols-rounded" aria-hidden="true">refresh</span>
+            <span className="material-symbols-rounded" aria-hidden="true">
+              refresh
+            </span>
             Buscar
           </button>
 
           <button className="btn primary" onClick={onNew}>
-            <span className="material-symbols-rounded" aria-hidden="true">add</span>
+            <span className="material-symbols-rounded" aria-hidden="true">
+              add
+            </span>
             Registrar evaluación
           </button>
         </div>
@@ -222,6 +266,7 @@ export default function EvaluacionServicios() {
               <th scope="col">Usuario (cédula)</th>
               <th scope="col">Servicio</th>
               <th scope="col">Calificación</th>
+              <th scope="col">Comentarios</th> {/* ✅ NUEVO */}
               <th scope="col">Acciones</th>
             </tr>
           </thead>
@@ -229,13 +274,21 @@ export default function EvaluacionServicios() {
           <tbody>
             {!loading && filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ textAlign: "center", padding: 24, color: "#6b7280", fontStyle: "italic" }}>
+                <td
+                  colSpan={6}
+                  style={{
+                    textAlign: "center",
+                    padding: 24,
+                    color: "#6b7280",
+                    fontStyle: "italic",
+                  }}
+                >
                   No se encontraron registros
                 </td>
               </tr>
             ) : (
               filtered.map((r) => {
-                const u = userById.get(String(r.cedula));
+                const u = userById.get(String(r.numero_documento));
                 const s = serviceById.get(Number(r.idservicios));
                 const cal = r.calificacion || 0;
 
@@ -245,23 +298,42 @@ export default function EvaluacionServicios() {
                     <td style={{ color: "#374151" }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         <span style={{ fontWeight: 700 }}>{u?.nombre || "-"}</span>
-                        <span style={{ fontSize: 12, color: "#6b7280" }}>{r.cedula}</span>
+                        <span style={{ fontSize: 12, color: "#6b7280" }}>{r.numero_documento}</span>
                       </div>
                     </td>
-                    <td style={{ color: "#374151" }}>{s?.nombreservicios || `#${r.idservicios}`}</td>
+                    <td style={{ color: "#374151" }}>
+                      {s?.nombreservicios || `#${r.idservicios}`}
+                    </td>
                     <td>
                       <span style={{ color: "#f59e0b", fontWeight: 800 }}>
-                        {"★".repeat(cal)}{"☆".repeat(Math.max(0, 5 - cal))}
+                        {"★".repeat(cal)}
+                        {"☆".repeat(Math.max(0, 5 - cal))}
                       </span>
                     </td>
+
+                    {/* ✅ NUEVO: comentarios en tabla */}
+                    <td style={{ color: "#374151", maxWidth: 420 }}>
+                      <span title={String(r.comentarios ?? "").trim()}>
+                        {clampText(r.comentarios, 70) || "-"}
+                      </span>
+                    </td>
+
                     <td>
                       <div className="btn-group">
                         <button className="btn-edit" onClick={() => onEdit(r)} title="Editar">
-                          <span className="material-symbols-rounded" aria-hidden="true">edit</span>
+                          <span className="material-symbols-rounded" aria-hidden="true">
+                            edit
+                          </span>
                           Editar
                         </button>
-                        <button className="btn-delete" onClick={() => askDelete(r.idevaluacion)} title="Eliminar">
-                          <span className="material-symbols-rounded" aria-hidden="true">delete</span>
+                        <button
+                          className="btn-delete"
+                          onClick={() => askDelete(r.idevaluacion)}
+                          title="Eliminar"
+                        >
+                          <span className="material-symbols-rounded" aria-hidden="true">
+                            delete
+                          </span>
                           Eliminar
                         </button>
                       </div>
@@ -279,15 +351,23 @@ export default function EvaluacionServicios() {
         <div
           className="modal show"
           aria-hidden="false"
-          onClick={(e) => { if (e.target.classList.contains("modal")) setOpenForm(false); }}
+          onClick={(e) => {
+            if (e.target.classList.contains("modal")) setOpenForm(false);
+          }}
         >
           <div className="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
             <div className="modal-header">
               <div>
-                <div className="modal-title" id="modalTitle">{isEdit ? "Editar Evaluación" : "Registrar Nueva Evaluación"}</div>
-                <div className="modal-sub">{isEdit ? `Editando #${editId}` : "Crear nueva calificación de servicio"}</div>
+                <div className="modal-title" id="modalTitle">
+                  {isEdit ? "Editar Evaluación" : "Registrar Nueva Evaluación"}
+                </div>
+                <div className="modal-sub">
+                  {isEdit ? `Editando #${editId}` : "Crear nueva calificación de servicio"}
+                </div>
               </div>
-              <button className="close-btn" aria-label="Cerrar" onClick={() => setOpenForm(false)}>&times;</button>
+              <button className="close-btn" aria-label="Cerrar" onClick={() => setOpenForm(false)}>
+                &times;
+              </button>
             </div>
 
             <form ref={formRef} onSubmit={onSubmit}>
@@ -301,17 +381,17 @@ export default function EvaluacionServicios() {
                 </div>
 
                 <div className="form-row">
-                  <label htmlFor="selCedula">Usuario (cédula)</label>
+                  <label htmlFor="selnumero_documento">Usuario (cédula)</label>
                   <select
-                    id="selCedula"
-                    value={cedula}
-                    onChange={(e) => setCedula(e.target.value)}
+                    id="selnumero_documento"
+                    value={numero_documento}
+                    onChange={(e) => setnumero_documento(e.target.value)}
                     required
                   >
                     <option value="">Seleccione…</option>
                     {users.map((u) => (
-                      <option key={u.cedula} value={u.cedula}>
-                        {u.cedula} · {u.nombre}
+                      <option key={u.numero_documento} value={u.numero_documento}>
+                        {u.numero_documento} · {u.nombre}
                       </option>
                     ))}
                   </select>
@@ -351,7 +431,7 @@ export default function EvaluacionServicios() {
                           padding: "6px 10px",
                           color: i <= rating ? "#f59e0b" : "#d1d5db",
                           cursor: "pointer",
-                          fontWeight: 900
+                          fontWeight: 900,
                         }}
                         aria-label={`${i} estrellas`}
                         title={`${i} estrellas`}
@@ -362,7 +442,32 @@ export default function EvaluacionServicios() {
                   </div>
                 </div>
 
-                {error ? <p className="note error" style={{ marginTop: 6 }}>{error}</p> : null}
+                {/* ✅ NUEVO: comentarios */}
+                <div className="form-row">
+                  <label htmlFor="txtComentarios">Comentarios</label>
+                  <textarea
+                    id="txtComentarios"
+                    value={comentarios}
+                    onChange={(e) => setComentarios(e.target.value)}
+                    placeholder="Escribe un comentario sobre el servicio…"
+                    rows={3}
+                    maxLength={500}
+                    required
+                    style={{
+                      resize: "vertical",
+                      minHeight: 90,
+                    }}
+                  />
+                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 6 }}>
+                    {String(comentarios ?? "").trim().length}/500
+                  </div>
+                </div>
+
+                {error ? (
+                  <p className="note error" style={{ marginTop: 6 }}>
+                    {error}
+                  </p>
+                ) : null}
               </div>
 
               <div className="modal-footer">
@@ -370,7 +475,9 @@ export default function EvaluacionServicios() {
                   Cancelar
                 </button>
                 <button type="submit" className="btn primary">
-                  <span className="material-symbols-rounded" aria-hidden="true">check</span>
+                  <span className="material-symbols-rounded" aria-hidden="true">
+                    check
+                  </span>
                   {isEdit ? "Actualizar" : "Guardar"}
                 </button>
               </div>
@@ -384,15 +491,21 @@ export default function EvaluacionServicios() {
         <div
           className="modal modal-delete show"
           aria-hidden="false"
-          onClick={(e) => { if (e.target.classList.contains("modal")) setOpenDelete(false); }}
+          onClick={(e) => {
+            if (e.target.classList.contains("modal")) setOpenDelete(false);
+          }}
         >
           <div className="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="deleteTitle">
             <div className="modal-header">
               <div>
-                <div className="modal-title" id="deleteTitle">Confirmar Eliminación</div>
+                <div className="modal-title" id="deleteTitle">
+                  Confirmar Eliminación
+                </div>
                 <div className="modal-sub">Esta acción no se puede deshacer</div>
               </div>
-              <button className="close-btn" aria-label="Cerrar" onClick={() => setOpenDelete(false)}>&times;</button>
+              <button className="close-btn" aria-label="Cerrar" onClick={() => setOpenDelete(false)}>
+                &times;
+              </button>
             </div>
 
             <div className="modal-body">
@@ -405,8 +518,12 @@ export default function EvaluacionServicios() {
               </div>
 
               <div style={{ padding: "8px 4px 0 4px" }}>
-                <p style={{ fontSize: 16, color: "#111827", marginBottom: 8 }}>Vas a eliminar la evaluación:</p>
-                <p style={{ fontWeight: 700, fontSize: 18, color: "var(--danger)", marginBottom: 12 }}>#{deleteId}</p>
+                <p style={{ fontSize: 16, color: "#111827", marginBottom: 8 }}>
+                  Vas a eliminar la evaluación:
+                </p>
+                <p style={{ fontWeight: 700, fontSize: 18, color: "var(--danger)", marginBottom: 12 }}>
+                  #{deleteId}
+                </p>
                 <p style={{ color: "#6b7280", lineHeight: 1.6 }}>
                   Confirma esta eliminación permanente.
                 </p>

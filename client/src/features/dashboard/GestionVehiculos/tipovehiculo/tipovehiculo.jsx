@@ -2,18 +2,19 @@ import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import "./tipovehiculos.styles.css";
 
-const API_URL = "http://localhost:3000/api/tipovehiculos";
+const API_URL = "https://tunik-api.onrender.com/api/tipovehiculos";
 
 export default function TipoVehiculos() {
   const [tipos, setTipos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
+  const [alerta, setAlerta] = useState(""); // alerta personalizada
   const [search, setSearch] = useState("");
 
   // modal crear/editar
   const [openForm, setOpenForm] = useState(false);
-  const [editId, setEditId] = useState(null); // idtipovehiculos cuando edita
+  const [editId, setEditId] = useState(null);
   const [nombre, setNombre] = useState("");
 
   // modal eliminar
@@ -55,6 +56,7 @@ export default function TipoVehiculos() {
     setNombre("");
     setError("");
     setMsg("");
+    setAlerta("");
   }
 
   function onNew() {
@@ -74,21 +76,49 @@ export default function TipoVehiculos() {
     setOpenDelete(true);
   }
 
+  // ✅ VALIDACIÓN DE SOLO LETRAS
+  const handleNombreChange = (e) => {
+    const valor = e.target.value;
+    // Si contiene números, mostrar alerta
+    if (/\d/.test(valor)) {
+      setAlerta("El nombre no puede contener números");
+      return;
+    } else {
+      setAlerta("");
+    }
+    setNombre(valor);
+  };
+
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
+    setAlerta("");
     const nom = (nombre || "").trim();
+
+    // ✅ Validar campo vacío
     if (!nom) {
-      setError("Ingresa el nombre");
+      setAlerta("El nombre es obligatorio");
       return;
     }
+
+    // ✅ Validar duplicado (sin distinguir mayúsculas/minúsculas)
+    const nombreExiste = tipos.some(
+      (t) =>
+        t.nombre.toLowerCase() === nom.toLowerCase() &&
+        t.idtipovehiculos !== editId
+    );
+    if (nombreExiste) {
+      setAlerta("Ya existe un tipo con ese nombre");
+      return;
+    }
+
     try {
       if (editId) {
         await axios.put(`${API_URL}/${editId}`, { nombre: nom });
-        setMsg("Tipo actualizado");
+        setMsg("Tipo actualizado correctamente");
       } else {
         await axios.post(API_URL, { nombre: nom });
-        setMsg("Tipo creado");
+        setMsg("Tipo creado correctamente");
       }
       setOpenForm(false);
       resetForm();
@@ -102,7 +132,7 @@ export default function TipoVehiculos() {
     setError("");
     try {
       await axios.delete(`${API_URL}/${deleteId}`);
-      setMsg("Tipo eliminado");
+      setMsg("Tipo eliminado correctamente");
       setOpenDelete(false);
       setDeleteId(null);
       await fetchTipos();
@@ -127,7 +157,6 @@ export default function TipoVehiculos() {
 
   return (
     <div className="tipos-page">
-      {/* Header */}
       <header className="header">
         <div>
           <h1 className="title">Tipos de Vehículos</h1>
@@ -159,13 +188,11 @@ export default function TipoVehiculos() {
         </div>
       </header>
 
-      {/* Mensajes */}
       <div className="table-wrap">
         {loading && <p style={{ padding: "12px 32px" }}>Cargando tipos…</p>}
         {!loading && msg ? <p className="note">{msg}</p> : null}
         {error ? <p className="note error">{error}</p> : null}
 
-        {/* Tabla */}
         <table className="table" role="table" aria-label="Tabla de tipos de vehículos">
           <thead>
             <tr>
@@ -203,54 +230,12 @@ export default function TipoVehiculos() {
             )}
           </tbody>
         </table>
-
-        {/* Paginación */}
-        {filtered.length > pageSize ? (
-          <div className="pagination" role="navigation" aria-label="Paginación">
-            <button
-              className="page-btn"
-              aria-label="Anterior"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              ◀
-            </button>
-
-            {Array.from({ length: totalPages }).map((_, i) => {
-              const n = i + 1;
-              const within = n >= page - 2 && n <= page + 2;
-              const show = n === 1 || n === totalPages || within;
-              if (!show) return null;
-              return (
-                <button
-                  key={n}
-                  className={`page-btn ${page === n ? "active" : ""}`}
-                  onClick={() => setPage(n)}
-                >
-                  {n}
-                </button>
-              );
-            })}
-
-            <button
-              className="page-btn"
-              aria-label="Siguiente"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
-              ▶
-            </button>
-          </div>
-        ) : null}
       </div>
 
       {/* MODAL CREAR/EDITAR */}
       {openForm ? (
-        <div
-          className="modal show"
-          aria-hidden="false"
-          onClick={(e) => { if (e.target.classList.contains("modal")) setOpenForm(false); }}
-        >
+        <div className="modal show" aria-hidden="false"
+          onClick={(e) => { if (e.target.classList.contains("modal")) setOpenForm(false); }}>
           <div className="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
             <div className="modal-header">
               <div>
@@ -259,12 +244,7 @@ export default function TipoVehiculos() {
                   {editId ? `Editando #${editId}` : "Completa el nombre para crear un tipo"}
                 </div>
               </div>
-              <button
-                type="button"
-                className="close-x"
-                aria-label="Cerrar"
-                onClick={() => setOpenForm(false)}
-              >
+              <button type="button" className="close-x" aria-label="Cerrar" onClick={() => setOpenForm(false)}>
                 &times;
               </button>
             </div>
@@ -277,29 +257,24 @@ export default function TipoVehiculos() {
                   type="text"
                   placeholder="Ej: Carro, Moto, Camioneta…"
                   value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
+                  onChange={handleNombreChange}
                   autoFocus
                   required
                 />
 
-                {error ? (
-                  <div style={{ color: "#be1e2d", fontWeight: 600 }}>{error}</div>
-                ) : null}
+                {alerta && <div className="alerta" style={{
+                  background: "#fdecea",
+                  color: "#be1e2d",
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  fontWeight: 600,
+                  marginTop: "6px"
+                }}>{alerta}</div>}
               </div>
 
               <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setOpenForm(false)}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn dark"
-                  onClick={(e) => e.currentTarget.form?.requestSubmit()}
-                >
+                <button type="button" className="btn" onClick={() => setOpenForm(false)}>Cancelar</button>
+                <button type="submit" className="btn dark">
                   <span className="material-symbols-rounded" aria-hidden="true">check</span>
                   {editId ? "Actualizar" : "Guardar"}
                 </button>
@@ -311,23 +286,15 @@ export default function TipoVehiculos() {
 
       {/* MODAL ELIMINAR */}
       {openDelete ? (
-        <div
-          className="modal show"
-          aria-hidden="false"
-          onClick={(e) => { if (e.target.classList.contains("modal")) setOpenDelete(false); }}
-        >
+        <div className="modal show" aria-hidden="false"
+          onClick={(e) => { if (e.target.classList.contains("modal")) setOpenDelete(false); }}>
           <div className="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="deleteTitle">
             <div className="modal-header">
               <div>
                 <div className="modal-title" id="deleteTitle">Confirmar Eliminación</div>
                 <div className="modal-sub">Esta acción no se puede deshacer</div>
               </div>
-              <button
-                type="button"
-                className="close-x"
-                aria-label="Cerrar"
-                onClick={() => setOpenDelete(false)}
-              >
+              <button type="button" className="close-x" aria-label="Cerrar" onClick={() => setOpenDelete(false)}>
                 &times;
               </button>
             </div>
@@ -341,12 +308,8 @@ export default function TipoVehiculos() {
             </div>
 
             <div className="modal-footer">
-              <button className="btn" onClick={() => setOpenDelete(false)}>
-                Cancelar
-              </button>
-              <button className="btn dark" onClick={confirmDelete}>
-                Eliminar
-              </button>
+              <button className="btn" onClick={() => setOpenDelete(false)}>Cancelar</button>
+              <button className="btn dark" onClick={confirmDelete}>Eliminar</button>
             </div>
           </div>
         </div>

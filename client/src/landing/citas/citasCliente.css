@@ -1,0 +1,132 @@
+.citas-page {
+  background:
+    radial-gradient(circle at top left, rgba(230, 57, 70, 0.18), transparent 55%),
+    radial-gradient(circle at bottom right, rgba(15, 23, 42, 0.14), #f8f9fa);
+  min-height: 100vh;
+}
+
+/* Contenedor principal un poco más estrecho */
+.citas-page .container {
+  max-width: 980px;
+}
+
+.citas-head {
+  margin-top: 26px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.citas-head h2 {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.citas-head p {
+  font-size: 0.95rem;
+}
+
+/* Card base */
+.citas-card {
+  background: #ffffff;
+  border-radius: 22px;
+  padding: 22px 20px;
+  margin-top: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.14);
+}
+
+/* Formularios */
+.citas-page .form-label {
+  font-weight: 600;
+  color: #111827;
+}
+
+.citas-page .form-select,
+.citas-page .form-control {
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  padding: 9px 11px;
+  min-height: 44px;
+}
+
+.citas-page .form-select:focus,
+.citas-page .form-control:focus {
+  border-color: rgba(230, 57, 70, 0.7);
+  box-shadow: 0 0 0 3px rgba(230, 57, 70, 0.25);
+}
+
+/* Botón principal */
+.citas-page .btn-primary {
+  background: #e63946;
+  border: none;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-radius: 999px;
+  padding-block: 10px;
+}
+
+.citas-page .btn-primary:hover {
+  filter: brightness(0.96);
+  box-shadow: 0 14px 32px rgba(220, 38, 38, 0.35);
+}
+
+/* Tabla del historial */
+.citas-card .table {
+  margin-bottom: 0;
+}
+
+.citas-card thead tr {
+  background: linear-gradient(
+    90deg,
+    rgba(15, 23, 42, 0.96),
+    rgba(30, 64, 175, 0.96)
+  );
+}
+
+.citas-card thead th {
+  border: none;
+  color: #e5e7eb;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.citas-card tbody tr {
+  transition: background 0.14s ease, transform 0.12s ease;
+}
+
+.citas-card tbody tr:hover {
+  background: #f9fafb;
+  transform: translateY(-1px);
+}
+
+.citas-card tbody td {
+  vertical-align: middle;
+  font-size: 0.95rem;
+}
+
+/* Badge de estado (por si luego cambias clases) */
+.citas-page .badge-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.citas-page .badge-status.pendiente {
+  background: rgba(251, 191, 36, 0.14);
+  color: #92400e;
+}
+
+.citas-page .badge-status.completada {
+  background: rgba(16, 185, 129, 0.14);
+  color: #065f46;
+}

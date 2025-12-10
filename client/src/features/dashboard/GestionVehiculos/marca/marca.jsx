@@ -1,26 +1,28 @@
+// features/dashboard/GestionServicios/marcas/Marcas.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import "./marcas.styles.css";
 
-const API_URL = "http://localhost:3000/api/marcas";
+const API_URL = "https://tunik-api.onrender.com/api/marcas";
 
 export default function Marcas() {
   const [marcas, setMarcas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
+  const [alerta, setAlerta] = useState("");
   const [search, setSearch] = useState("");
 
-  // modal crear/editar
+  // Modal crear/editar
   const [openForm, setOpenForm] = useState(false);
-  const [editId, setEditId] = useState(null); // idmarca cuando edita
-  const [descripcion, setDescripcion] = useState("");
+  const [editId, setEditId] = useState(null);
+  const [descripcion, setdescripcion] = useState("");
 
-  // modal eliminar
+  // Modal eliminar
   const [openDelete, setOpenDelete] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
 
-  // paginación
+  // Paginación
   const [page, setPage] = useState(1);
   const pageSize = 8;
 
@@ -30,7 +32,9 @@ export default function Marcas() {
     setMsg("");
     try {
       const res = await axios.get(API_URL);
-      const list = (res?.data?.data || []).map((m) => ({
+      const raw = res?.data.data;
+      const arr = Array.isArray(raw) ? raw : (raw?.data || []);
+      const list = arr.map((m) => ({
         idmarca: Number(m.idmarca),
         descripcion: String(m.descripcion || ""),
       }));
@@ -50,9 +54,10 @@ export default function Marcas() {
 
   function resetForm() {
     setEditId(null);
-    setDescripcion("");
+    setdescripcion("");
     setError("");
     setMsg("");
+    setAlerta("");
   }
 
   function onNew() {
@@ -62,7 +67,7 @@ export default function Marcas() {
 
   function onEdit(marca) {
     setEditId(marca.idmarca);
-    setDescripcion(marca.descripcion || "");
+    setdescripcion(marca.descripcion || "");
     setOpenForm(true);
     setMsg("Editando marca #" + marca.idmarca);
   }
@@ -72,46 +77,62 @@ export default function Marcas() {
     setOpenDelete(true);
   }
 
+  // ✅ Validación: solo letras
+  const handledescripcionChange = (e) => {
+    const valor = e.target.value;
+    if (/\d/.test(valor)) {
+      setAlerta("El descripcion no puede contener números");
+      return;
+    } else {
+      setAlerta("");
+    }
+    setdescripcion(valor);
+  };
+
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
-    setMsg("");
-    const desc = (descripcion || "").trim();
+    setAlerta("");
+    const nom = (descripcion || "").trim();
 
-    if (!desc) {
-      setError("⚠️ Ingresa la descripción");
+    // Validar campo vacío
+    if (!nom) {
+      setAlerta("El descripcion es obligatorio");
       return;
     }
 
-    // Validación: no números, solo letras y espacios
-    const regex = /^[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+$/;
-    if (!regex.test(desc)) {
-      setError("⚠️ La descripción solo debe contener letras y espacios");
+    // Validar duplicado (sin distinguir mayúsculas/minúsculas)
+    const descripcionExiste = marcas.some(
+      (m) =>
+        m.descripcion.toLowerCase() === nom.toLowerCase() &&
+        m.idmarca !== editId
+    );
+    if (descripcionExiste) {
+      setAlerta("Ya existe una marca con ese descripcion");
       return;
     }
 
     try {
       if (editId) {
-        await axios.put(`${API_URL}/${editId}`, { descripcion: desc });
-        setMsg("✅ Marca actualizada");
+        await axios.put(`${API_URL}/${editId}`, { descripcion: nom });
+        setMsg("Marca actualizada correctamente");
       } else {
-        await axios.post(API_URL, { descripcion: desc });
-        setMsg("✅ Marca creada");
+        await axios.post(API_URL, { descripcion: nom });
+        setMsg("Marca creada correctamente");
       }
       setOpenForm(false);
       resetForm();
       await fetchMarcas();
     } catch (err) {
-      setError("❌ " + (err?.response?.data?.msg || err.message || "Error guardando marca"));
+      setError(err?.response?.data?.msg || err.message || "Error guardando marca");
     }
   }
-
 
   async function confirmDelete() {
     setError("");
     try {
       await axios.delete(`${API_URL}/${deleteId}`);
-      setMsg("Marca eliminada");
+      setMsg("Marca eliminada correctamente");
       setOpenDelete(false);
       setDeleteId(null);
       await fetchMarcas();
@@ -120,7 +141,7 @@ export default function Marcas() {
     }
   }
 
-  // búsqueda y paginación (cliente)
+  // Búsqueda + paginación
   const filtered = useMemo(() => {
     const q = (search || "").trim().toLowerCase();
     if (!q) return marcas;
@@ -136,11 +157,10 @@ export default function Marcas() {
 
   return (
     <div className="marcas-page">
-      {/* Header */}
       <header className="header">
         <div>
           <h1 className="title">Marcas</h1>
-          <div className="subtitle">Administra las marcas de vehículos</div>
+          <div className="subtitle">Administra las marcas registradas</div>
         </div>
 
         <div className="actions">
@@ -149,7 +169,7 @@ export default function Marcas() {
             <input
               className="search-input"
               type="search"
-              placeholder="Buscar por descripción…"
+              placeholder="Buscar por descripcion…"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               onKeyDown={(e) => { if (e.key === "Enter") setPage(1); }}
@@ -168,18 +188,16 @@ export default function Marcas() {
         </div>
       </header>
 
-      {/* Mensajes */}
       <div className="table-wrap">
         {loading && <p style={{ padding: "12px 32px" }}>Cargando marcas…</p>}
         {!loading && msg ? <p className="note">{msg}</p> : null}
         {error ? <p className="note error">{error}</p> : null}
 
-        {/* Tabla */}
         <table className="table" role="table" aria-label="Tabla de marcas">
           <thead>
             <tr>
               <th scope="col">ID</th>
-              <th scope="col">Descripción</th>
+              <th scope="col">descripcion</th>
               <th scope="col">Acciones</th>
             </tr>
           </thead>
@@ -212,102 +230,56 @@ export default function Marcas() {
             )}
           </tbody>
         </table>
-
-        {/* Paginación */}
-        {filtered.length > pageSize ? (
-          <div className="pagination" role="navigation" aria-label="Paginación">
-            <button
-              className="page-btn"
-              aria-label="Anterior"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              ◀
-            </button>
-
-            {Array.from({ length: totalPages }).map((_, i) => {
-              const n = i + 1;
-              const within = n >= page - 2 && n <= page + 2;
-              const show = n === 1 || n === totalPages || within;
-              if (!show) return null;
-              return (
-                <button
-                  key={n}
-                  className={`page-btn ${page === n ? "active" : ""}`}
-                  onClick={() => setPage(n)}
-                >
-                  {n}
-                </button>
-              );
-            })}
-
-            <button
-              className="page-btn"
-              aria-label="Siguiente"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
-              ▶
-            </button>
-          </div>
-        ) : null}
       </div>
 
       {/* MODAL CREAR/EDITAR */}
       {openForm ? (
-        <div
-          className="modal show"
-          aria-hidden="false"
-          onClick={(e) => { if (e.target.classList.contains("modal")) setOpenForm(false); }}
-        >
-          <div className="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div className="modal show" onClick={(e) => { if (e.target.classList.contains("modal")) setOpenForm(false); }}>
+          <div className="modal-dialog">
             <div className="modal-header">
               <div>
-                <div className="modal-title" id="modalTitle">{editId ? "Editar Marca" : "Registrar Marca"}</div>
+                <div className="modal-title">{editId ? "Editar Marca" : "Registrar Marca"}</div>
                 <div className="modal-sub">
-                  {editId ? `Editando #${editId}` : "Completa la descripción para crear una marca"}
+                  {editId ? `Editando #${editId}` : "Completa el descripcion para crear una marca"}
                 </div>
               </div>
-              <button
-                type="button"
-                className="close-x"
-                aria-label="Cerrar"
-                onClick={() => setOpenForm(false)}
-              >
+              <button type="button" className="close-x" aria-label="Cerrar" onClick={() => setOpenForm(false)}>
                 &times;
               </button>
             </div>
 
             <form onSubmit={onSubmit}>
               <div className="modal-body" style={{ gridTemplateColumns: "1fr" }}>
-                <label htmlFor="mDesc">Descripción</label>
+                <label htmlFor="marcadescripcion">descripcion</label>
                 <input
-                  id="mDesc"
+                  id="marcadescripcion"
                   type="text"
-                  placeholder="Ej: Toyota"
+                  placeholder="Ej: Toyota, Ford, Honda…"
                   value={descripcion}
-                  onChange={(e) => setDescripcion(e.target.value)}
+                  onChange={handledescripcionChange}
                   autoFocus
                   required
                 />
-
-                {error ? (
-                  <div style={{ color: "#be1e2d", fontWeight: 600 }}>{error}</div>
-                ) : null}
+                {alerta && (
+                  <div
+                    className="alerta"
+                    style={{
+                      background: "#fdecea",
+                      color: "#be1e2d",
+                      padding: "8px 12px",
+                      borderRadius: "8px",
+                      fontWeight: 600,
+                      marginTop: "6px",
+                    }}
+                  >
+                    {alerta}
+                  </div>
+                )}
               </div>
 
               <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setOpenForm(false)}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn dark"
-                >
+                <button type="button" className="btn" onClick={() => setOpenForm(false)}>Cancelar</button>
+                <button type="submit" className="btn dark">
                   <span className="material-symbols-rounded" aria-hidden="true">check</span>
                   {editId ? "Actualizar" : "Guardar"}
                 </button>
@@ -319,23 +291,14 @@ export default function Marcas() {
 
       {/* MODAL ELIMINAR */}
       {openDelete ? (
-        <div
-          className="modal show"
-          aria-hidden="false"
-          onClick={(e) => { if (e.target.classList.contains("modal")) setOpenDelete(false); }}
-        >
-          <div className="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="deleteTitle">
+        <div className="modal show" onClick={(e) => { if (e.target.classList.contains("modal")) setOpenDelete(false); }}>
+          <div className="modal-dialog">
             <div className="modal-header">
               <div>
-                <div className="modal-title" id="deleteTitle">Confirmar Eliminación</div>
+                <div className="modal-title">Confirmar Eliminación</div>
                 <div className="modal-sub">Esta acción no se puede deshacer</div>
               </div>
-              <button
-                type="button"
-                className="close-x"
-                aria-label="Cerrar"
-                onClick={() => setOpenDelete(false)}
-              >
+              <button type="button" className="close-x" aria-label="Cerrar" onClick={() => setOpenDelete(false)}>
                 &times;
               </button>
             </div>
@@ -349,12 +312,8 @@ export default function Marcas() {
             </div>
 
             <div className="modal-footer">
-              <button className="btn" onClick={() => setOpenDelete(false)}>
-                Cancelar
-              </button>
-              <button className="btn dark" onClick={confirmDelete}>
-                Eliminar
-              </button>
+              <button className="btn" onClick={() => setOpenDelete(false)}>Cancelar</button>
+              <button className="btn dark" onClick={confirmDelete}>Eliminar</button>
             </div>
           </div>
         </div>

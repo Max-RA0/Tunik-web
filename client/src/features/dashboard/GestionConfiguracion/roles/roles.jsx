@@ -2,30 +2,52 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import "./roles.styles.css";
 
-const API_URL = "http://localhost:3000/api/roles";
+const API_URL = "https://tunik-api.onrender.com/api/roles";
 
-/* ------------------- Sets quemados ------------------- */
-const PERMISOS_LIST = [
-  { key: "usuarios", label: "Gestión de Usuarios" },
-  { key: "servicios", label: "Gestión de Servicios" },
-  { key: "ventas", label: "Gestión de Ventas" },
-  { key: "evaluacion", label: "Evaluación Servicios" },
-  { key: "vehiculos", label: "Vehículos" },
-  { key: "configuracion", label: "Configuración" },
-];
+const ROLE_ADMIN = "Administrador";
+const ROLE_CLIENTE = "Cliente";
+const ALLOWED_ROLES = [ROLE_ADMIN, ROLE_CLIENTE];
 
-const PRIVILEGIOS_LIST = [
-  { key: "crear", label: "Registrar" },
-  { key: "buscar", label: "Buscar" },
-  { key: "editar", label: "Editar" },
-  { key: "eliminar", label: "Eliminar" },
-];
+/* ------------------- Helpers básicos ------------------- */
+function initialsFrom(name = "") {
+  return String(name)
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((n) => (n[0] || "").toUpperCase())
+    .join("");
+}
 
-/* ------------------- Normalizadores (tolera formas distintas) ------------------- */
+function normText(v) {
+  return String(v ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeRoleName(s) {
+  const t = String(s || "").trim();
+  if (!t) return "";
+  const lower = normText(t);
+  if (lower === normText(ROLE_ADMIN)) return ROLE_ADMIN;
+  if (lower === normText(ROLE_CLIENTE)) return ROLE_CLIENTE;
+  return t; // (no permitido para guardar, pero útil para ver)
+}
+
+/* ------------------- Normalizadores de ROLES ------------------- */
 function normalizeRole(raw) {
   if (!raw || typeof raw !== "object") return null;
+
   const id =
-    raw.idroles ?? raw.idrol ?? raw.id ?? raw.role_id ?? raw.roleId ?? raw.Id ?? raw.IdRol ?? null;
+    raw.idroles ??
+    raw.idrol ??
+    raw.id ??
+    raw.role_id ??
+    raw.roleId ??
+    raw.Id ??
+    raw.IdRol ??
+    null;
 
   const desc =
     raw.descripcion ??
@@ -38,33 +60,6 @@ function normalizeRole(raw) {
 
   if (id == null) return null;
   return { idroles: Number(id), descripcion: String(desc) };
-}
-
-function extractOneRole(res) {
-  const d = res?.data ?? null;
-  const candidates = [];
-  if (d && typeof d === "object") {
-    if (d.data != null) candidates.push(d.data);
-    if (d.role != null) candidates.push(d.role);
-    if (d.item != null) candidates.push(d.item);
-  }
-  if (d) candidates.push(d);
-  if (d?.rows && Array.isArray(d.rows) && d.rows.length > 0) candidates.push(d.rows[0]);
-  if (Array.isArray(d) && d.length > 0) candidates.push(d[0]);
-
-  for (let i = 0; i < candidates.length; i++) {
-    const c = candidates[i];
-    if (Array.isArray(c)) {
-      for (let j = 0; j < c.length; j++) {
-        const n = normalizeRole(c[j]);
-        if (n) return n;
-      }
-    } else {
-      const n2 = normalizeRole(c);
-      if (n2) return n2;
-    }
-  }
-  return null;
 }
 
 function extractManyRoles(res) {
@@ -89,6 +84,28 @@ function extractManyRoles(res) {
   return out;
 }
 
+function extractOneRole(res) {
+  const d = res?.data ?? null;
+  const cands = [];
+  if (d?.data) cands.push(d.data);
+  if (d?.role) cands.push(d.role);
+  if (d?.item) cands.push(d.item);
+  if (d) cands.push(d);
+
+  for (const c of cands) {
+    if (Array.isArray(c)) {
+      for (const item of c) {
+        const n = normalizeRole(item);
+        if (n) return n;
+      }
+    } else {
+      const n = normalizeRole(c);
+      if (n) return n;
+    }
+  }
+  return null;
+}
+
 /* -------------------------------- Componente -------------------------------- */
 export default function Roles() {
   const [roles, setRoles] = useState([]);
@@ -97,31 +114,30 @@ export default function Roles() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
-  // modal crear/editar
   const [openForm, setOpenForm] = useState(false);
   const [idroles, setIdroles] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const isEdit = useMemo(() => Boolean(idroles), [idroles]);
 
-  // modal eliminar
   const [openDelete, setOpenDelete] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  const [deleteDesc, setDeleteDesc] = useState("");
 
-  // modal ACL (Permisos / Privilegios)
-  const [openACL, setOpenACL] = useState(false);
-  const [aclTab, setAclTab] = useState("permisos"); // 'permisos' | 'privilegios'
-  const [aclRole, setAclRole] = useState(null); // { idroles, descripcion }
-  const [aclLoading, setAclLoading] = useState(false);
-  const [aclSaving, setAclSaving] = useState(false);
-  const [aclPermisos, setAclPermisos] = useState([]);     // string[]
-  const [aclPrivilegios, setAclPrivilegios] = useState([]); // string[]
-
-  // paginación
   const [page, setPage] = useState(1);
   const pageSize = 5;
 
-  // ref del formulario (para submit robusto)
   const formRef = useRef(null);
+
+  const sessionUser = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("usuario") || "null");
+    } catch {
+      return null;
+    }
+  }, []);
+  const sessionName = sessionUser?.nombre || sessionUser?.name || "Usuario";
+  const sessionEmail = sessionUser?.email || "usuario@example.com";
+  const sessionInitials = initialsFrom(sessionName);
 
   async function loadRoles(q = "") {
     setLoading(true);
@@ -130,17 +146,19 @@ export default function Roles() {
     try {
       const url = q ? API_URL + "?search=" + encodeURIComponent(q) : API_URL;
       const res = await axios.get(url);
-      let list = extractManyRoles(res);
+      const list = extractManyRoles(res);
 
-      // fallback por si el backend devuelve array directo
-      if (!list.length) {
-        const direct = res?.data ?? null;
-        if (Array.isArray(direct)) {
-          list = direct.map(normalizeRole).filter(Boolean);
-        } else if (direct?.data && Array.isArray(direct.data)) {
-          list = direct.data.map(normalizeRole).filter(Boolean);
-        }
-      }
+      // Opcional: ordenar para que se vea bonito (Admin, Cliente, luego lo demás)
+      const nsAdmin = normText(ROLE_ADMIN);
+      const nsCliente = normText(ROLE_CLIENTE);
+      list.sort((a, b) => {
+        const aa = normText(a.descripcion);
+        const bb = normText(b.descripcion);
+        const pa = aa === nsAdmin ? 0 : aa === nsCliente ? 1 : 2;
+        const pb = bb === nsAdmin ? 0 : bb === nsCliente ? 1 : 2;
+        if (pa !== pb) return pa - pb;
+        return String(a.descripcion).localeCompare(String(b.descripcion));
+      });
 
       setRoles(list);
       setMsg("Resultados: " + list.length);
@@ -166,9 +184,7 @@ export default function Roles() {
   function onNew() {
     resetForm();
     setOpenForm(true);
-    setTimeout(() => {
-      formRef.current?.querySelector("#rolDescripcion")?.focus();
-    }, 0);
+    setTimeout(() => formRef.current?.querySelector("#rolDescripcion")?.focus(), 0);
   }
 
   async function onEdit(id) {
@@ -177,34 +193,36 @@ export default function Roles() {
     try {
       const res = await axios.get(API_URL + "/" + id);
       const r = extractOneRole(res);
-      if (!r) {
-        setError("No se pudo leer el rol desde la API (estructura inesperada).");
-        return;
-      }
+      if (!r) return setError("No se pudo leer el rol desde la API (estructura inesperada).");
       setIdroles(r.idroles);
       setDescripcion(r.descripcion || "");
       setOpenForm(true);
       setMsg("Editando rol #" + r.idroles);
-      setTimeout(() => {
-        formRef.current?.querySelector("#rolDescripcion")?.focus();
-      }, 0);
+      setTimeout(() => formRef.current?.querySelector("#rolDescripcion")?.focus(), 0);
     } catch (err) {
       setError(err?.response?.data?.msg || err.message);
     }
   }
 
-  function askDelete(id) {
-    setDeleteId(id);
+  function askDelete(role) {
+    setDeleteId(role?.idroles);
+    setDeleteDesc(role?.descripcion || "");
     setOpenDelete(true);
   }
 
   async function confirmDelete() {
     setError("");
     try {
+      const nd = normText(deleteDesc);
+      if (nd === normText(ROLE_ADMIN) || nd === normText(ROLE_CLIENTE)) {
+        return setError("No puedes eliminar un rol base del sistema (Administrador/Cliente).");
+      }
+
       await axios.delete(API_URL + "/" + deleteId);
       setMsg("Rol eliminado");
       setOpenDelete(false);
       setDeleteId(null);
+      setDeleteDesc("");
       await loadRoles(search);
     } catch (err) {
       setError(err?.response?.data?.msg || err.message);
@@ -214,17 +232,33 @@ export default function Roles() {
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
-    const desc = (descripcion || "").trim();
-    if (!desc) {
-      setError("Ingresa la descripción");
-      return;
+
+    const descRaw = (descripcion || "").trim();
+    if (!descRaw) return setError("La descripción es obligatoria (no puede quedar vacía).");
+
+    // ✅ Solo 2 roles permitidos
+    const fixed = normalizeRoleName(descRaw);
+    const allowed = ALLOWED_ROLES.some((r) => normText(r) === normText(fixed));
+    if (!allowed) {
+      return setError(`Solo se permiten estos roles: ${ALLOWED_ROLES.join(" y ")}.`);
     }
+
+    // ✅ NO duplicados
+    const wanted = normText(fixed);
+    const dup = roles.some((r) => {
+      const same = normText(r?.descripcion) === wanted;
+      if (!same) return false;
+      if (!isEdit) return true;
+      return Number(r?.idroles) !== Number(idroles);
+    });
+    if (dup) return setError("Ese rol ya existe. Usa un nombre diferente.");
+
     try {
       if (isEdit) {
-        await axios.put(API_URL + "/" + idroles, { descripcion: desc });
+        await axios.put(API_URL + "/" + idroles, { descripcion: fixed });
         setMsg("Rol actualizado");
       } else {
-        await axios.post(API_URL, { descripcion: desc });
+        await axios.post(API_URL, { descripcion: fixed });
         setMsg("Rol creado");
       }
       setOpenForm(false);
@@ -237,7 +271,9 @@ export default function Roles() {
 
   const filtered = useMemo(() => {
     const s = (search || "").trim().toLowerCase();
-    return roles.filter((r) => (r?.descripcion ? String(r.descripcion).toLowerCase() : "").includes(s));
+    return roles.filter((r) =>
+      (r?.descripcion ? String(r.descripcion).toLowerCase() : "").includes(s)
+    );
   }, [roles, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -247,94 +283,49 @@ export default function Roles() {
     if (page > totalPages) setPage(totalPages);
   }, [totalPages, page]);
 
-  /* ------------------- ACL handlers ------------------- */
-  async function openAclModal(role, initialTab = "permisos") {
-    setAclTab(initialTab);
-    setAclRole(role);
-    setOpenACL(true);
-    setAclLoading(true);
-    setError("");
-    setMsg("");
-
-    try {
-      const { data } = await axios.get(`${API_URL}/${role.idroles}/acl`);
-      // Estructura esperada: { ok?, idroles, permisos: string[], privilegios: string[] }
-      const perms = Array.isArray(data?.permisos) ? data.permisos : [];
-      const privs = Array.isArray(data?.privilegios) ? data.privilegios : [];
-      setAclPermisos(perms);
-      setAclPrivilegios(privs);
-    } catch (err) {
-      setError(err?.response?.data?.msg || err.message || "Error cargando ACL");
-      setAclPermisos([]);
-      setAclPrivilegios([]);
-    } finally {
-      setAclLoading(false);
-    }
-  }
-
-  function togglePermiso(key) {
-    setAclPermisos((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-    );
-  }
-
-  function togglePrivilegio(key) {
-    setAclPrivilegios((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-    );
-  }
-
-  async function saveAcl() {
-    if (!aclRole) return;
-    setAclSaving(true);
-    setError("");
-    setMsg("");
-    try {
-      await axios.put(`${API_URL}/${aclRole.idroles}/acl`, {
-        permisos: aclPermisos,
-        privilegios: aclPrivilegios,
-      });
-      setMsg("Permisos/Privilegios actualizados");
-      setOpenACL(false);
-    } catch (err) {
-      setError(err?.response?.data?.msg || err.message || "Error guardando ACL");
-    } finally {
-      setAclSaving(false);
-    }
-  }
-
   return (
     <div className="roles-page">
       <header className="header">
         <div className="header-left">
           <h1>Roles</h1>
         </div>
+
         <div className="header-actions">
           <div className="search-wrapper" role="search" aria-label="Buscar rol">
-            <span className="material-symbols-rounded search-icon" aria-hidden="true">search</span>
+            <span className="material-symbols-rounded search-icon" aria-hidden="true">
+              search
+            </span>
             <input
               className="search-input"
               type="search"
               placeholder="Buscar por descripción…"
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              onKeyDown={(e) => { if (e.key === "Enter") loadRoles(search); }}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") loadRoles(search);
+              }}
             />
           </div>
 
           <button className="btn primary" onClick={() => loadRoles(search)}>
-            <span className="material-symbols-rounded" aria-hidden="true">refresh</span>
+            <span className="material-symbols-rounded" aria-hidden="true">
+              refresh
+            </span>
             Buscar
           </button>
 
-          <button className="btn primary" onClick={onNew}>
-            <span className="material-symbols-rounded" aria-hidden="true">add</span>
+          <button className="btn primary" onClick={onNew} title="Solo permite Administrador o Cliente">
+            <span className="material-symbols-rounded" aria-hidden="true">
+              add
+            </span>
             Registrar nuevo rol
           </button>
         </div>
       </header>
 
-      {loading && <p style={{ padding: "12px 32px" }}>Cargando roles…</p>}
       {!loading && msg ? <p className="note">{msg}</p> : null}
       {error ? <p className="note error">{error}</p> : null}
 
@@ -347,50 +338,62 @@ export default function Roles() {
               <th scope="col">Acciones</th>
             </tr>
           </thead>
+
           <tbody>
             {!loading && pageItems.length === 0 ? (
               <tr>
-                <td colSpan={3} style={{ textAlign: "center", padding: 24, color: "#6b7280", fontStyle: "italic" }}>
+                <td
+                  colSpan={3}
+                  style={{
+                    textAlign: "center",
+                    padding: 24,
+                    color: "#6b7280",
+                    fontStyle: "italic",
+                  }}
+                >
                   No se encontraron registros
                 </td>
               </tr>
             ) : (
-              pageItems.map((r) => (
-                <tr key={r.idroles}>
-                  <td style={{ fontWeight: 700, color: "#111827" }}>{r.idroles}</td>
-                  <td style={{ color: "#374151" }}>{r.descripcion}</td>
-                  <td>
-                    <div className="btn-group">
-                      <button className="btn-edit" onClick={() => onEdit(r.idroles)} title="Editar rol">
-                        <span className="material-symbols-rounded" aria-hidden="true">edit</span>
-                        Editar
-                      </button>
-                      <button className="btn-delete" onClick={() => askDelete(r.idroles)} title="Eliminar rol">
-                        <span className="material-symbols-rounded" aria-hidden="true">delete</span>
-                        Eliminar
-                      </button>
+              pageItems.map((r) => {
+                const isBase =
+                  normText(r.descripcion) === normText(ROLE_ADMIN) ||
+                  normText(r.descripcion) === normText(ROLE_CLIENTE);
 
-                      {/* NUEVOS BOTONES */}
-                      <button
-                        className="btn-acl"
-                        onClick={() => openAclModal(r, "permisos")}
-                        title="Configurar Permisos"
-                      >
-                        <span className="material-symbols-rounded" aria-hidden="true">tune</span>
-                        Permisos
-                      </button>
-                      <button
-                        className="btn-acl"
-                        onClick={() => openAclModal(r, "privilegios")}
-                        title="Configurar Privilegios"
-                      >
-                        <span className="material-symbols-rounded" aria-hidden="true">verified_user</span>
-                        Privilegios
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                return (
+                  <tr key={r.idroles}>
+                    <td style={{ fontWeight: 700, color: "#111827" }}>{r.idroles}</td>
+                    <td style={{ color: "#374151" }}>{normalizeRoleName(r.descripcion)}</td>
+                    <td>
+                      <div className="btn-group">
+                        <button
+                          className="btn-edit"
+                          onClick={() => onEdit(r.idroles)}
+                          title="Editar rol"
+                        >
+                          <span className="material-symbols-rounded" aria-hidden="true">
+                            edit
+                          </span>{" "}
+                          Editar
+                        </button>
+
+                        <button
+                          className="btn-delete"
+                          onClick={() => askDelete(r)}
+                          title={isBase ? "No se puede eliminar un rol base" : "Eliminar rol"}
+                          disabled={isBase}
+                          style={isBase ? { opacity: 0.55, cursor: "not-allowed" } : undefined}
+                        >
+                          <span className="material-symbols-rounded" aria-hidden="true">
+                            delete
+                          </span>{" "}
+                          Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -443,20 +446,19 @@ export default function Roles() {
         <div
           className="modal show"
           aria-hidden="false"
-          onClick={(e) => { if (e.target.classList.contains("modal")) setOpenForm(false); }}
+          onClick={(e) => e.target.classList.contains("modal") && setOpenForm(false)}
         >
           <div className="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
             <div className="modal-header">
               <div>
-                <div className="modal-title" id="modalTitle">{isEdit ? "Editar Rol" : "Registrar Nuevo Rol"}</div>
-                <div className="modal-sub">{isEdit ? `Editando #${idroles}` : "Crear nuevo rol de usuario"}</div>
+                <div className="modal-title" id="modalTitle">
+                  {isEdit ? "Editar Rol" : "Registrar Nuevo Rol"}
+                </div>
+                <div className="modal-sub">
+                  {isEdit ? `Editando #${idroles}` : "Solo puedes crear Administrador o Cliente"}
+                </div>
               </div>
-              <button
-                type="button"
-                className="close-btn"
-                aria-label="Cerrar"
-                onClick={() => setOpenForm(false)}
-              >
+              <button type="button" className="close-btn" aria-label="Cerrar" onClick={() => setOpenForm(false)}>
                 &times;
               </button>
             </div>
@@ -464,45 +466,48 @@ export default function Roles() {
             <form ref={formRef} onSubmit={onSubmit}>
               <div className="modal-body">
                 <div className="modal-user">
-                  <div className="avatar-small">JP</div>
+                  <div className="avatar-small">{sessionInitials || "US"}</div>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 16 }}>Juan Pérez</div>
-                    <div style={{ fontSize: 13, color: "#666" }}>juan.perez@example.com</div>
+                    <div style={{ fontWeight: 700, fontSize: 16 }}>{sessionName}</div>
+                    <div style={{ fontSize: 13, color: "#666" }}>{sessionEmail}</div>
                   </div>
                 </div>
 
                 <div className="form-row">
                   <label htmlFor="rolDescripcion">Descripción</label>
-                  <input
+                  <select
                     id="rolDescripcion"
-                    type="text"
-                    placeholder="Ej: Administrador"
-                    value={descripcion}
+                    value={normalizeRoleName(descripcion)}
                     onChange={(e) => setDescripcion(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        formRef.current?.requestSubmit();
-                      }
-                    }}
-                    autoFocus
                     required
-                  />
+                  >
+                    <option value="" disabled>
+                      Selecciona un rol…
+                    </option>
+                    <option value={ROLE_ADMIN}>{ROLE_ADMIN}</option>
+                    <option value={ROLE_CLIENTE}>{ROLE_CLIENTE}</option>
+                  </select>
+
+                  <div style={{ marginTop: 8, color: "#6b7280", fontSize: 13 }}>
+                    Roles permitidos: <strong>{ROLE_ADMIN}</strong> y <strong>{ROLE_CLIENTE}</strong>.
+                  </div>
                 </div>
 
-                {error ? <p className="note error" style={{ marginTop: 6 }}>{error}</p> : null}
+                {error ? (
+                  <p className="note error" style={{ marginTop: 6 }}>
+                    {error}
+                  </p>
+                ) : null}
               </div>
 
               <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-cancel"
-                  onClick={() => setOpenForm(false)}
-                >
+                <button type="button" className="btn btn-cancel" onClick={() => setOpenForm(false)}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn primary">
-                  <span className="material-symbols-rounded" aria-hidden="true">check</span>
+                  <span className="material-symbols-rounded" aria-hidden="true">
+                    check
+                  </span>
                   {isEdit ? "Actualizar" : "Guardar"}
                 </button>
               </div>
@@ -516,149 +521,49 @@ export default function Roles() {
         <div
           className="modal modal-delete show"
           aria-hidden="false"
-          onClick={(e) => { if (e.target.classList.contains("modal")) setOpenDelete(false); }}
+          onClick={(e) => e.target.classList.contains("modal") && setOpenDelete(false)}
         >
           <div className="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="deleteTitle">
             <div className="modal-header">
               <div>
-                <div className="modal-title" id="deleteTitle">Confirmar Eliminación</div>
+                <div className="modal-title" id="deleteTitle">
+                  Confirmar Eliminación
+                </div>
                 <div className="modal-sub">Esta acción no se puede deshacer</div>
               </div>
-              <button
-                type="button"
-                className="close-btn"
-                aria-label="Cerrar"
-                onClick={() => setOpenDelete(false)}
-              >
+              <button type="button" className="close-btn" aria-label="Cerrar" onClick={() => setOpenDelete(false)}>
                 &times;
               </button>
             </div>
 
             <div className="modal-body">
               <div className="modal-user">
-                <div className="avatar-small">JP</div>
+                <div className="avatar-small">{sessionInitials || "US"}</div>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 16 }}>Juan Pérez</div>
-                  <div style={{ fontSize: 13, color: "#666" }}>juan.perez@example.com</div>
+                  <div style={{ fontWeight: 700, fontSize: 16 }}>{sessionName}</div>
+                  <div style={{ fontSize: 13, color: "#666" }}>{sessionEmail}</div>
                 </div>
               </div>
 
               <div style={{ padding: "8px 4px 0 4px" }}>
-                <p style={{ fontSize: 16, color: "#111827", marginBottom: 8 }}>Vas a eliminar el rol:</p>
-                <p style={{ fontWeight: 700, fontSize: 18, color: "var(--danger)", marginBottom: 12 }}>#{deleteId}</p>
+                <p style={{ fontSize: 16, color: "#111827", marginBottom: 8 }}>
+                  Vas a eliminar el rol:
+                </p>
+                <p style={{ fontWeight: 700, fontSize: 18, color: "var(--danger)", marginBottom: 6 }}>
+                  #{deleteId} – {normalizeRoleName(deleteDesc)}
+                </p>
                 <p style={{ color: "#6b7280", lineHeight: 1.6 }}>
-                  Confirma que <strong>Juan Pérez</strong> desea eliminar este registro permanentemente.
+                  Confirma que <strong>{sessionName}</strong> desea eliminar este registro permanentemente.
                 </p>
               </div>
             </div>
 
             <div className="modal-footer">
-              <button
-                type="button"
-                className="btn btn-cancel"
-                onClick={() => setOpenDelete(false)}
-              >
+              <button type="button" className="btn btn-cancel" onClick={() => setOpenDelete(false)}>
                 Cancelar
               </button>
-              <button
-                type="button"
-                className="btn btn-danger"
-                onClick={confirmDelete}
-              >
+              <button type="button" className="btn btn-danger" onClick={confirmDelete}>
                 Eliminar
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {/* MODAL ACL (Permisos/Privilegios) */}
-      {openACL ? (
-        <div
-          className="modal show"
-          aria-hidden="false"
-          onClick={(e) => { if (e.target.classList.contains("modal")) setOpenACL(false); }}
-        >
-          <div className="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="aclTitle">
-            <div className="modal-header">
-              <div>
-                <div className="modal-title" id="aclTitle">
-                  {aclRole ? `ACL – Rol #${aclRole.idroles} (${aclRole.descripcion})` : "Permisos & Privilegios"}
-                </div>
-                <div className="modal-sub">Define qué módulos y acciones puede usar este rol</div>
-              </div>
-              <button type="button" className="close-btn" aria-label="Cerrar" onClick={() => setOpenACL(false)}>
-                &times;
-              </button>
-            </div>
-
-            <div className="acl-tabs">
-              <button
-                type="button"
-                className={`acl-tab ${aclTab === "permisos" ? "active" : ""}`}
-                onClick={() => setAclTab("permisos")}
-              >
-                <span className="material-symbols-rounded" aria-hidden="true">tune</span>
-                Permisos (Módulos)
-              </button>
-              <button
-                type="button"
-                className={`acl-tab ${aclTab === "privilegios" ? "active" : ""}`}
-                onClick={() => setAclTab("privilegios")}
-              >
-                <span className="material-symbols-rounded" aria-hidden="true">verified_user</span>
-                Privilegios (Acciones)
-              </button>
-            </div>
-
-            <div className="modal-body">
-              {aclLoading ? (
-                <p style={{ padding: 8 }}>Cargando…</p>
-              ) : aclTab === "permisos" ? (
-                <div className="acl-grid">
-                  {PERMISOS_LIST.map((p) => (
-                    <label key={p.key} className={`acl-chip ${aclPermisos.includes(p.key) ? "on" : ""}`}>
-                      <input
-                        type="checkbox"
-                        checked={aclPermisos.includes(p.key)}
-                        onChange={() => togglePermiso(p.key)}
-                      />
-                      <span className="material-symbols-rounded" aria-hidden="true">folder</span>
-                      <span>{p.label}</span>
-                    </label>
-                  ))}
-                </div>
-              ) : (
-                <div className="acl-grid">
-                  {PRIVILEGIOS_LIST.map((p) => (
-                    <label key={p.key} className={`acl-chip ${aclPrivilegios.includes(p.key) ? "on" : ""}`}>
-                      <input
-                        type="checkbox"
-                        checked={aclPrivilegios.includes(p.key)}
-                        onChange={() => togglePrivilegio(p.key)}
-                      />
-                      <span className="material-symbols-rounded" aria-hidden="true">task_alt</span>
-                      <span>{p.label}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-
-              {error ? <p className="note error" style={{ marginTop: 6 }}>{error}</p> : null}
-            </div>
-
-            <div className="modal-footer">
-              <button type="button" className="btn btn-cancel" onClick={() => setOpenACL(false)}>
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className="btn primary"
-                onClick={saveAcl}
-                disabled={aclSaving}
-              >
-                <span className="material-symbols-rounded" aria-hidden="true">save</span>
-                {aclSaving ? "Guardando…" : "Guardar"}
               </button>
             </div>
           </div>

@@ -1,0 +1,88 @@
+:root{
+  --tunik-red:#e63946;
+  --tunik-dark:#1e2430;
+}
+
+.tunik-footer{
+  background: linear-gradient(180deg, #1e2430, #151a23);
+  color: rgba(255,255,255,.92);
+  padding: 56px 0 18px;
+  margin-top: 40px;
+}
+
+.tunik-footerGrid{
+  border-bottom: 1px solid rgba(255,255,255,.10);
+  padding-bottom: 24px;
+}
+
+.tunik-footerTitle{
+  font-weight: 900;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.tunik-footerText{
+  color: rgba(255,255,255,.74);
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+
+.tunik-footerLinks{
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.tunik-footerLinks li{
+  margin-bottom: 10px;
+}
+
+.tunik-footerLinks a{
+  color: rgba(255,255,255,.74);
+  text-decoration: none;
+  transition: color .15s ease;
+}
+
+.tunik-footerLinks a:hover{
+  color: var(--tunik-red);
+}
+
+.tunik-footerLine{
+  color: rgba(255,255,255,.74);
+  margin-bottom: 10px;
+}
+
+.tunik-social{
+  list-style:none;
+  padding:0;
+  margin: 0;
+  display:flex;
+  gap: 10px;
+}
+
+.tunik-social a{
+  width: 42px;
+  height: 42px;
+  display:grid;
+  place-items:center;
+  border-radius: 14px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.12);
+  color: #fff;
+  transition: transform .15s ease, background .15s ease;
+  text-decoration:none;
+}
+
+.tunik-social a:hover{
+  transform: translateY(-1px);
+  background: rgba(230,57,70,.18);
+  border-color: rgba(230,57,70,.30);
+}
+
+.tunik-copyright{
+  padding-top: 14px;
+  text-align: center;
+  color: rgba(255,255,255,.62);
+  font-size: .92rem;
+}
